@@ -1,5 +1,8 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Float
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Float, DateTime
 from sqlalchemy.orm import relationship
+
 from database import Base
 
 
@@ -52,7 +55,35 @@ class Match(Base):
     # resultado de 1X2
     result = Column(String, index=True)     # 'H', 'D', 'A'
 
-    # se quiser guardar odds (se existirem na planilha)
+    # odds (se existirem na planilha)
     home_odds = Column(Float, nullable=True)
     draw_odds = Column(Float, nullable=True)
     away_odds = Column(Float, nullable=True)
+
+
+class LiveSnapshot(Base):
+    """
+    Snapshot de jogos ao vivo (estado atual do jogo em um momento do tempo).
+    Cada chamada do /live/bra registra uma linha aqui.
+    """
+    __tablename__ = "live_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    fixture_id = Column(Integer, index=True, nullable=True)
+    league = Column(String, nullable=True)
+    season = Column(String, nullable=True)
+    round = Column(String, nullable=True)
+
+    date = Column(DateTime, nullable=True)
+
+    status_short = Column(String, nullable=True)  # 1H, 2H, HT, FT...
+    status_long = Column(String, nullable=True)
+    minute = Column(Integer, nullable=True)
+
+    home_team = Column(String, index=True, nullable=True)
+    away_team = Column(String, index=True, nullable=True)
+    home_goals = Column(Integer, nullable=True)
+    away_goals = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
