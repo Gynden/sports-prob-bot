@@ -107,7 +107,7 @@ def admin_ingest_bra(db: Session = Depends(get_db)):
 async def live_bra():
     """
     Retorna os jogos ao vivo do Brasileirão Série A,
-    usando a API-FOOTBALL como fonte de dados em tempo real.
+    filtrando a partir de TODOS os jogos ao vivo da API-FOOTBALL.
     """
     if not FOOTBALL_API_KEY:
         raise HTTPException(
@@ -115,22 +115,16 @@ async def live_bra():
             detail="FOOTBALL_API_KEY (ou API_FOOTBALL_KEY) não configurada no ambiente do Render."
         )
 
-    # ID da liga Brasileirao Série A na API-FOOTBALL (ex: 71)
-    league_id = 71
-    # Se quiser, pode também parametrizar a season
-    season = 2025
-
     url = f"{FOOTBALL_API_BASE.rstrip('/')}/fixtures"
+    # pede TODOS os jogos ao vivo do mundo
     params = {
-        "league": league_id,
-        "season": season,
-        "live": "all",  # retorna somente partidas ao vivo
+        "live": "all",
     }
     headers = {
         "x-apisports-key": FOOTBALL_API_KEY,
     }
 
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=20) as client:
         r = await client.get(url, params=params, headers=headers)
 
     if r.status_code != 200:
@@ -140,15 +134,26 @@ async def live_bra():
         )
 
     data = r.json()
-    jogos = []
+    all_live = data.get("response", [])
 
-    for item in data.get("response", []):
-        fixture = item.get("fixture", {})
-        league = item.get("league", {})
-        teams = item.get("teams", {})
-        goals = item.get("goals", {})
+    jogos_bra_serie_a = []
 
-        jogos.append({
+    for item in all_live:
+        league = item.get("league", {}) or {}
+        fixture = item.get("fixture", {}) or {}
+        teams = item.get("teams", {}) or {}
+        goals = item.get("goals", {}) or {}
+
+        country = (league.get("country") or "").lower()
+        league_name = (league.get("name") or "").lower()
+
+        # filtra só Brasil + Série A
+        if country != "brazil":
+            continue
+        if "serie a" not in league_name:
+            continue
+
+        jogos_bra_serie_a.append({
             "fixture_id": fixture.get("id"),
             "date": fixture.get("date"),
             "status": fixture.get("status", {}).get("short"),
@@ -161,6 +166,9 @@ async def live_bra():
         })
 
     return {
-        "count": len(jogos),
-        "matches": jogos,
+        # quantos jogos ao vivo o mundo todo tem
+        "raw_count": len(all_live),
+        # quantos a gente filtrou como Brasileirão Série A
+        "count": len(jogos_bra_serie_a),
+        "matches": jogos_bra_serie_a,
     }
