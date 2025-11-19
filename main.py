@@ -5,11 +5,16 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, Base, engine
 from models import Team, Match
 from analysis import analyze_match
-from ingest_bra_excel import ingest_bra  # <-- novo import
+from ingest_bra_excel import ingest_bra
+from live_service import fetch_live_matches_bra  # <-- novo import
 
+# Cria as tabelas no banco (se ainda não existirem)
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="BRA Probabilities API")
+app = FastAPI(
+    title="Sports Probabilities API",
+    version="1.0.0",
+)
 
 
 def get_db():
@@ -22,7 +27,7 @@ def get_db():
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "API BRA.xlsx no ar 🚀"}
+    return {"status": "ok", "message": "API de probabilidades esportivas no ar 🚀"}
 
 
 @app.get("/teams")
@@ -45,6 +50,10 @@ class BraMatchRequest(BaseModel):
 
 @app.post("/probabilities/bra/match")
 def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
+    """
+    Calcula probabilidades e estatísticas para um confronto específico
+    usando o histórico recente da BRA.xlsx já ingerida no banco.
+    """
     try:
         result = analyze_match(db, req.home_team, req.away_team, req.last_matches)
     except ValueError as e:
@@ -78,3 +87,22 @@ def admin_ingest_bra(db: Session = Depends(get_db)):
         "inserted": inserted,
         "matches": total_after,
     }
+
+
+@app.get("/live/bra", summary="Jogos ao vivo do Brasileirão Série A")
+async def get_live_bra():
+    """
+    Retorna os jogos ao vivo do Brasileirão Série A,
+    usando a API-FOOTBALL como fonte de dados em tempo real.
+    """
+    try:
+        matches = await fetch_live_matches_bra()
+        return {
+            "count": len(matches),
+            "matches": matches,
+        }
+    except HTTPException:
+        # repassa erros HTTP que já vêm tratados do live_service
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {e}")
