@@ -136,6 +136,21 @@ def list_leagues(db: Session = Depends(get_db)):
     ]
 
 
+# --------- DEBUG: VER O QUE A API RETORNA PRO TIME --------- #
+
+@app.get("/debug/soccer/search-team")
+def debug_search_team(name: str, country: str | None = None):
+    """
+    Rota de debug para ver exatamente o que a API-SPORTS
+    está retornando para um time.
+    """
+    try:
+        data = search_soccer_team(name, country)
+    except ApiSportsError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return data
+
+
 # --------- PROBABILIDADE: OVER 2.5 GOLS (SOCCER) --------- #
 
 class Over25Request(BaseModel):
@@ -153,30 +168,42 @@ class Over25Request(BaseModel):
     )
 
 
+def _search_team_or_404(name: str, country: str | None):
+    """
+    Tenta buscar o time com país; se não achar nada e tiver país,
+    tenta novamente sem país. Se mesmo assim não vier nada, lança 404.
+    """
+    try:
+        data = search_soccer_team(name, country)
+    except ApiSportsError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    resp = data.get("response", [])
+
+    # se não achou e tinha país, tenta sem país
+    if not resp and country:
+        try:
+            data = search_soccer_team(name, None)
+        except ApiSportsError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        resp = data.get("response", [])
+
+    if not resp:
+        raise HTTPException(status_code=404, detail=f"Time não encontrado: {name}")
+
+    return resp[0].get("team", {})
+
+
 @app.post("/probabilities/soccer/over25")
 def probability_over25(req: Over25Request):
     """
     Calcula a probabilidade de OVER 2.5 gols com base
     nos confrontos diretos recentes entre dois times.
     """
-    # 1) Buscar times pelo nome
-    try:
-        home_data = search_soccer_team(req.home_team, req.country)
-        away_data = search_soccer_team(req.away_team, req.country)
-    except ApiSportsError as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-    home_resp = home_data.get("response", [])
-    away_resp = away_data.get("response", [])
-
-    if not home_resp:
-        raise HTTPException(status_code=404, detail=f"Time da casa não encontrado: {req.home_team}")
-    if not away_resp:
-        raise HTTPException(status_code=404, detail=f"Time visitante não encontrado: {req.away_team}")
-
-    # Pega o primeiro resultado de cada (poderíamos melhorar isso filtrando mais)
-    home_team_info = home_resp[0].get("team", {})
-    away_team_info = away_resp[0].get("team", {})
+    # 1) Buscar times com fallback
+    home_team_info = _search_team_or_404(req.home_team, req.country)
+    away_team_info = _search_team_or_404(req.away_team, req.country)
 
     home_id = home_team_info.get("id")
     away_id = away_team_info.get("id")
