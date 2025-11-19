@@ -1,4 +1,5 @@
 import os
+
 import httpx
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -7,19 +8,14 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, Base, engine
 from models import Team, Match
 from analysis import analyze_match
-from ingest_bra_excel import ingest_bra
+from ingest_bra_excel import ingest_bra  # ingestão da planilha BRA.xlsx
 
+# --------------------------------------------------------------------
+# DB
+# --------------------------------------------------------------------
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="BRA Probabilities API")
-
-# --- NOVO: chave da API de jogos ao vivo ---
-API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY", "")
-
-if not API_FOOTBALL_KEY:
-    print("[AVISO] API_FOOTBALL_KEY não configurada nas variáveis de ambiente. "
-          "O endpoint /live/bra vai retornar erro 500.")
-
 
 def get_db():
     db = SessionLocal()
@@ -28,7 +24,19 @@ def get_db():
     finally:
         db.close()
 
+# --------------------------------------------------------------------
+# Variáveis de ambiente para API-FOOTBALL
+# --------------------------------------------------------------------
+# aceita tanto FOOTBALL_API_KEY quanto API_FOOTBALL_KEY
+FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+FOOTBALL_API_BASE = os.getenv(
+    "FOOTBALL_API_BASE",
+    "https://v3.football.api-sports.io"
+)
 
+# --------------------------------------------------------------------
+# Rotas básicas / probabilidades
+# --------------------------------------------------------------------
 @app.get("/")
 def root():
     return {"status": "ok", "message": "API BRA.xlsx no ar 🚀"}
@@ -62,8 +70,15 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     return result
 
 
+# --------------------------------------------------------------------
+# Endpoint admin para ingestão da planilha BRA.xlsx
+# --------------------------------------------------------------------
 @app.post("/admin/ingest-bra")
 def admin_ingest_bra(db: Session = Depends(get_db)):
+    """
+    Endpoint admin para popular o banco com a BRA.xlsx.
+    Só roda se ainda não houver partidas (pra evitar duplicar).
+    """
     total_before = db.query(Match).count()
     if total_before > 0:
         return {
@@ -84,66 +99,60 @@ def admin_ingest_bra(db: Session = Depends(get_db)):
         "matches": total_after,
     }
 
-# -------------------------------------------------------------------
-# NOVO ENDPOINT /live/bra – busca TODOS os jogos ao vivo e filtra Brasil Série A
-# -------------------------------------------------------------------
+
+# --------------------------------------------------------------------
+# Endpoint de jogos AO VIVO – Brasileirão Série A (API-FOOTBALL)
+# --------------------------------------------------------------------
 @app.get("/live/bra")
 async def live_bra():
     """
-    Jogos ao vivo da Série A do Brasileirão.
-    Busca todos os fixtures 'live' na API externa e filtra por:
-      - country == 'Brazil'
-      - league name contendo 'Serie A'
+    Retorna os jogos ao vivo do Brasileirão Série A,
+    usando a API-FOOTBALL como fonte de dados em tempo real.
     """
-
-    if not API_FOOTBALL_KEY:
+    if not FOOTBALL_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="API_FOOTBALL_KEY não configurada no ambiente do Render.",
+            detail="FOOTBALL_API_KEY (ou API_FOOTBALL_KEY) não configurada no ambiente do Render."
         )
 
-    url = "https://v3.football.api-sports.io/fixtures"
+    # ID da liga Brasileirao Série A na API-FOOTBALL (ex: 71)
+    league_id = 71
+    # Se quiser, pode também parametrizar a season
+    season = 2025
+
+    url = f"{FOOTBALL_API_BASE.rstrip('/')}/fixtures"
     params = {
-        "live": "all",
-        "timezone": "America/Sao_Paulo",
+        "league": league_id,
+        "season": season,
+        "live": "all",  # retorna somente partidas ao vivo
     }
     headers = {
-        "x-apisports-key": API_FOOTBALL_KEY,
+        "x-apisports-key": FOOTBALL_API_KEY,
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, params=params, headers=headers)
+        r = await client.get(url, params=params, headers=headers)
 
-    if resp.status_code != 200:
+    if r.status_code != 200:
         raise HTTPException(
-            status_code=resp.status_code,
-            detail=f"Erro na API de jogos ao vivo: {resp.text}",
+            status_code=502,
+            detail=f"Erro ao consultar API-FOOTBALL: {r.status_code} - {r.text}",
         )
 
-    data = resp.json()
-    fixtures = data.get("response", [])
+    data = r.json()
+    jogos = []
 
-    matches = []
-    for fx in fixtures:
-        league = fx.get("league", {})
-        country = league.get("country")
-        league_name = league.get("name", "")
+    for item in data.get("response", []):
+        fixture = item.get("fixture", {})
+        league = item.get("league", {})
+        teams = item.get("teams", {})
+        goals = item.get("goals", {})
 
-        # Filtra apenas Brasil Série A
-        if country != "Brazil":
-            continue
-        if "Serie A" not in league_name:
-            continue
-
-        fixture = fx.get("fixture", {})
-        teams = fx.get("teams", {})
-        goals = fx.get("goals", {})
-
-        matches.append({
+        jogos.append({
             "fixture_id": fixture.get("id"),
             "date": fixture.get("date"),
             "status": fixture.get("status", {}).get("short"),
-            "league": league_name,
+            "league": league.get("name"),
             "round": league.get("round"),
             "home_team": teams.get("home", {}).get("name"),
             "away_team": teams.get("away", {}).get("name"),
@@ -152,6 +161,6 @@ async def live_bra():
         })
 
     return {
-        "count": len(matches),
-        "matches": matches,
+        "count": len(jogos),
+        "matches": jogos,
     }
