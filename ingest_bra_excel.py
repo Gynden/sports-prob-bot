@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from database import engine, SessionLocal, Base
 from models import Team, Match
 
-# URL da planilha do Brasil no football-data.co.uk
-BRA_XLSX_URL = "https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fwww.football-data.co.uk%2Fnew%2FBRA.xlsx&wdOrigin=BROWSELINK"
+# URL correta da planilha do Brasil no football-data.co.uk
+BRA_XLSX_URL = "https://www.football-data.co.uk/new/BRA.xlsx"
 
 
 def create_tables():
@@ -56,7 +56,8 @@ def ingest_bra() -> int:
     file_bytes = io.BytesIO(resp.content)
 
     print("Lendo planilha com pandas...")
-    df = pd.read_excel(file_bytes)
+    # IMPORTANTE: usar engine="openpyxl"
+    df = pd.read_excel(file_bytes, engine="openpyxl")
 
     # checa colunas obrigatórias
     for required in ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]:
