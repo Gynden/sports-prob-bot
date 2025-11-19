@@ -1,9 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 
 from database import SessionLocal, Base, engine
 from models import Sport, League
-from api_sports import get_soccer_leagues, ApiSportsError
+from api_sports import (
+    get_soccer_leagues,
+    ApiSportsError,
+    search_soccer_team,
+    get_head_to_head_fixtures,
+)
 
 # Cria as tabelas no banco ao iniciar a API
 Base.metadata.create_all(bind=engine)
@@ -128,3 +134,114 @@ def list_leagues(db: Session = Depends(get_db)):
         }
         for l in leagues
     ]
+
+
+# --------- PROBABILIDADE: OVER 2.5 GOLS (SOCCER) --------- #
+
+class Over25Request(BaseModel):
+    home_team: str = Field(..., description="Nome do time da casa (ex: Flamengo)")
+    away_team: str = Field(..., description="Nome do time visitante (ex: Palmeiras)")
+    country: str | None = Field(
+        default=None,
+        description="País dos times (opcional, ex: Brazil, England)"
+    )
+    last_matches: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Quantidade de confrontos diretos recentes para analisar"
+    )
+
+
+@app.post("/probabilities/soccer/over25")
+def probability_over25(req: Over25Request):
+    """
+    Calcula a probabilidade de OVER 2.5 gols com base
+    nos confrontos diretos recentes entre dois times.
+    """
+    # 1) Buscar times pelo nome
+    try:
+        home_data = search_soccer_team(req.home_team, req.country)
+        away_data = search_soccer_team(req.away_team, req.country)
+    except ApiSportsError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    home_resp = home_data.get("response", [])
+    away_resp = away_data.get("response", [])
+
+    if not home_resp:
+        raise HTTPException(status_code=404, detail=f"Time da casa não encontrado: {req.home_team}")
+    if not away_resp:
+        raise HTTPException(status_code=404, detail=f"Time visitante não encontrado: {req.away_team}")
+
+    # Pega o primeiro resultado de cada (poderíamos melhorar isso filtrando mais)
+    home_team_info = home_resp[0].get("team", {})
+    away_team_info = away_resp[0].get("team", {})
+
+    home_id = home_team_info.get("id")
+    away_id = away_team_info.get("id")
+
+    if home_id is None or away_id is None:
+        raise HTTPException(status_code=500, detail="Não foi possível obter os IDs dos times na API-Sports.")
+
+    # 2) Buscar confrontos diretos
+    try:
+        h2h_data = get_head_to_head_fixtures(home_id, away_id, last=req.last_matches)
+    except ApiSportsError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    fixtures = h2h_data.get("response", [])
+
+    if not fixtures:
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhum confronto direto recente encontrado entre esses times."
+        )
+
+    # 3) Calcular probabilidade de OVER 2.5 gols
+    total_jogos_validos = 0
+    over25_hits = 0
+    under_or_equal_hits = 0
+
+    for f in fixtures:
+        goals = f.get("goals", {})
+        home_goals = goals.get("home")
+        away_goals = goals.get("away")
+
+        if home_goals is None or away_goals is None:
+            continue  # ignora jogos sem placar definido
+
+        total_gols = home_goals + away_goals
+        total_jogos_validos += 1
+
+        if total_gols >= 3:
+            over25_hits += 1
+        else:
+            under_or_equal_hits += 1
+
+    if total_jogos_validos == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Não há jogos com placar válido para analisar."
+        )
+
+    prob_over25 = over25_hits / total_jogos_validos
+    prob_under_or_equal = under_or_equal_hits / total_jogos_validos
+
+    return {
+        "home_team": {
+            "id": home_id,
+            "name": home_team_info.get("name"),
+        },
+        "away_team": {
+            "id": away_id,
+            "name": away_team_info.get("name"),
+        },
+        "matches_analyzed": total_jogos_validos,
+        "over25_probability_percent": round(prob_over25 * 100, 2),
+        "under25_or_equal_probability_percent": round(prob_under_or_equal * 100, 2),
+        "details": {
+            "over25_hits": over25_hits,
+            "under_or_equal_hits": under_or_equal_hits,
+        },
+    }
