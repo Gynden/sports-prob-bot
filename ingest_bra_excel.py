@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from database import engine, SessionLocal, Base
 from models import Team, Match
 
-# URL correta da planilha do Brasil no football-data.co.uk
+# URL correta da planilha .xlsx (não o link de visualização da Microsoft)
 BRA_XLSX_URL = "https://www.football-data.co.uk/new/BRA.xlsx"
 
 
@@ -44,6 +44,18 @@ def parse_season(row) -> str:
     return "unknown"
 
 
+def _find_col(df: pd.DataFrame, options: list[str], logical_name: str) -> str:
+    """
+    Procura uma coluna dentro de várias opções.
+    Ex.: ["HomeTeam", "Home"] para o time da casa.
+    """
+    for col in options:
+        if col in df.columns:
+            return col
+    raise RuntimeError(f"Coluna obrigatória não encontrada na planilha ({logical_name}). "
+                       f"Procuradas: {options}. Colunas existentes: {list(df.columns)}")
+
+
 def ingest_bra() -> int:
     """
     Baixa a BRA.xlsx, cria as tabelas (se preciso) e insere as partidas.
@@ -56,13 +68,41 @@ def ingest_bra() -> int:
     file_bytes = io.BytesIO(resp.content)
 
     print("Lendo planilha com pandas...")
-    # IMPORTANTE: usar engine="openpyxl"
+    # IMPORTANTE: engine=openpyxl para .xlsx
     df = pd.read_excel(file_bytes, engine="openpyxl")
 
-    # checa colunas obrigatórias
-    for required in ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]:
-        if required not in df.columns:
-            raise RuntimeError(f"Coluna obrigatória não encontrada na planilha: {required}")
+    # Mapeia nomes lógicos -> nomes reais das colunas
+    date_col = _find_col(df, ["Date"], "data")
+    home_col = _find_col(df, ["HomeTeam", "Home"], "time da casa")
+    away_col = _find_col(df, ["AwayTeam", "Away"], "time visitante")
+    home_goals_col = _find_col(df, ["FTHG", "HG"], "gols da casa")
+    away_goals_col = _find_col(df, ["FTAG", "AG"], "gols do visitante")
+    result_col = _find_col(df, ["FTR", "Res"], "resultado (H/D/A)")
+    league_col = None
+    try:
+        league_col = _find_col(df, ["Div", "League"], "liga")
+    except RuntimeError:
+        # se não tiver, vamos assumir "BRA"
+        pass
+
+    # odds 1X2 (podem não existir)
+    home_odds_col = None
+    draw_odds_col = None
+    away_odds_col = None
+    for opt in ["B365H", "PSCH"]:
+        if opt in df.columns:
+            home_odds_col = opt
+            break
+
+    for opt in ["B365D", "PSCD"]:
+        if opt in df.columns:
+            draw_odds_col = opt
+            break
+
+    for opt in ["B365A", "PSCA"]:
+        if opt in df.columns:
+            away_odds_col = opt
+            break
 
     create_tables()
     db = SessionLocal()
@@ -71,12 +111,12 @@ def ingest_bra() -> int:
         inserted = 0
 
         for _, row in df.iterrows():
-            dt = pd.to_datetime(row["Date"], dayfirst=True, errors="coerce")
+            dt = pd.to_datetime(row[date_col], dayfirst=True, errors="coerce")
             if pd.isna(dt):
                 continue
 
-            home_name = str(row["HomeTeam"]).strip()
-            away_name = str(row["AwayTeam"]).strip()
+            home_name = str(row[home_col]).strip()
+            away_name = str(row[away_col]).strip()
             if not home_name or not away_name:
                 continue
 
@@ -84,19 +124,27 @@ def ingest_bra() -> int:
             away_team = get_or_create_team(db, away_name)
 
             try:
-                home_goals = int(row["FTHG"])
-                away_goals = int(row["FTAG"])
+                home_goals = int(row[home_goals_col])
+                away_goals = int(row[away_goals_col])
             except Exception:
                 continue
 
-            result = str(row["FTR"]).strip()  # H, D ou A
+            result = str(row[result_col]).strip()  # H, D ou A
 
-            league = str(row["Div"]) if "Div" in df.columns else "BRA"
+            league = str(row[league_col]) if league_col and pd.notna(row[league_col]) else "BRA"
             season = parse_season(row)
 
-            home_odds = float(row["B365H"]) if "B365H" in df.columns and pd.notna(row["B365H"]) else None
-            draw_odds = float(row["B365D"]) if "B365D" in df.columns and pd.notna(row["B365D"]) else None
-            away_odds = float(row["B365A"]) if "B365A" in df.columns and pd.notna(row["B365A"]) else None
+            def safe_float(col_name):
+                if col_name and col_name in df.columns and pd.notna(row[col_name]):
+                    try:
+                        return float(row[col_name])
+                    except Exception:
+                        return None
+                return None
+
+            home_odds = safe_float(home_odds_col)
+            draw_odds = safe_float(draw_odds_col)
+            away_odds = safe_float(away_odds_col)
 
             match = Match(
                 league=league,
