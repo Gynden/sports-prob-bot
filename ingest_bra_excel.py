@@ -1,6 +1,4 @@
 import io
-from datetime import datetime
-
 import pandas as pd
 import requests
 from sqlalchemy.orm import Session
@@ -29,11 +27,12 @@ def get_or_create_team(db: Session, name: str) -> Team:
 def parse_season(row) -> str:
     """
     Tenta deduzir a Season.
-    Se o arquivo tiver coluna 'Season', use ela.
+    Se o arquivo tiver coluna 'Season', usa ela.
     Se não tiver, usa o ano da data.
     """
     if "Season" in row and pd.notna(row["Season"]):
         return str(row["Season"])
+
     if "Date" in row and pd.notna(row["Date"]):
         try:
             dt = pd.to_datetime(row["Date"], dayfirst=True, errors="coerce")
@@ -41,10 +40,15 @@ def parse_season(row) -> str:
                 return str(dt.year)
         except Exception:
             pass
+
     return "unknown"
 
 
-def ingest_bra():
+def ingest_bra() -> int:
+    """
+    Baixa a BRA.xlsx, cria as tabelas (se preciso) e insere as partidas.
+    Retorna a quantidade de jogos inseridos.
+    """
     print("Baixando planilha BRA.xlsx...")
     resp = requests.get(BRA_XLSX_URL, timeout=60)
     resp.raise_for_status()
@@ -54,21 +58,7 @@ def ingest_bra():
     print("Lendo planilha com pandas...")
     df = pd.read_excel(file_bytes)
 
-    # Normaliza nomes das colunas mais comuns do football-data
-    # (ajuste se a BRA.xlsx tiver algum nome diferente)
-    col_map = {
-        "Div": "Div",
-        "Date": "Date",
-        "HomeTeam": "HomeTeam",
-        "AwayTeam": "AwayTeam",
-        "FTHG": "FTHG",   # Full Time Home Goals
-        "FTAG": "FTAG",   # Full Time Away Goals
-        "FTR": "FTR",     # Full Time Result (H/D/A)
-        "B365H": "B365H", # Bet365 home odds (opcional)
-        "B365D": "B365D",
-        "B365A": "B365A",
-    }
-
+    # checa colunas obrigatórias
     for required in ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]:
         if required not in df.columns:
             raise RuntimeError(f"Coluna obrigatória não encontrada na planilha: {required}")
@@ -80,21 +70,18 @@ def ingest_bra():
         inserted = 0
 
         for _, row in df.iterrows():
-            # Data
             dt = pd.to_datetime(row["Date"], dayfirst=True, errors="coerce")
             if pd.isna(dt):
                 continue
 
             home_name = str(row["HomeTeam"]).strip()
             away_name = str(row["AwayTeam"]).strip()
-
             if not home_name or not away_name:
                 continue
 
             home_team = get_or_create_team(db, home_name)
             away_team = get_or_create_team(db, away_name)
 
-            # Gols e resultado
             try:
                 home_goals = int(row["FTHG"])
                 away_goals = int(row["FTAG"])
@@ -106,7 +93,6 @@ def ingest_bra():
             league = str(row["Div"]) if "Div" in df.columns else "BRA"
             season = parse_season(row)
 
-            # Odds (se existirem)
             home_odds = float(row["B365H"]) if "B365H" in df.columns and pd.notna(row["B365H"]) else None
             draw_odds = float(row["B365D"]) if "B365D" in df.columns and pd.notna(row["B365D"]) else None
             away_odds = float(row["B365A"]) if "B365A" in df.columns and pd.notna(row["B365A"]) else None
@@ -135,9 +121,13 @@ def ingest_bra():
         db.commit()
         print(f"Ingestão concluída. Total de partidas inseridas: {inserted}")
 
+        return inserted
+
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    ingest_bra()
+    # modo “script”, se algum dia você quiser rodar local
+    total = ingest_bra()
+    print("Total inserido:", total)
