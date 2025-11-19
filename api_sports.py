@@ -19,6 +19,14 @@ def _get_headers():
     }
 
 
+def _request(url: str, params: dict) -> dict:
+    headers = _get_headers()
+    resp = requests.get(url, headers=headers, params=params, timeout=20)
+    if resp.status_code != 200:
+        raise ApiSportsError(f"Erro na API-SPORTS [{url}]: {resp.status_code} - {resp.text}")
+    return resp.json()
+
+
 def get_soccer_leagues(country: str = "Brazil") -> dict:
     """
     Busca ligas de futebol na API-SPORTS para um determinado país.
@@ -26,13 +34,7 @@ def get_soccer_leagues(country: str = "Brazil") -> dict:
     """
     url = f"{BASE_URL_FOOTBALL}/leagues"
     params = {"country": country}
-    headers = _get_headers()
-
-    resp = requests.get(url, headers=headers, params=params, timeout=20)
-    if resp.status_code != 200:
-        raise ApiSportsError(f"Erro na API-SPORTS: {resp.status_code} - {resp.text}")
-
-    return resp.json()
+    return _request(url, params)
 
 
 def search_soccer_team(name: str, country: str | None = None) -> dict:
@@ -41,17 +43,11 @@ def search_soccer_team(name: str, country: str | None = None) -> dict:
     Retorna o JSON completo da API.
     """
     url = f"{BASE_URL_FOOTBALL}/teams"
-    params = {"search": name}
+    params: dict = {"search": name}
     if country:
         params["country"] = country
 
-    headers = _get_headers()
-    resp = requests.get(url, headers=headers, params=params, timeout=20)
-
-    if resp.status_code != 200:
-        raise ApiSportsError(f"Erro na API-SPORTS (teams): {resp.status_code} - {resp.text}")
-
-    return resp.json()
+    return _request(url, params)
 
 
 def get_head_to_head_fixtures(home_team_id: int, away_team_id: int, last: int = 10) -> dict:
@@ -64,10 +60,18 @@ def get_head_to_head_fixtures(home_team_id: int, away_team_id: int, last: int = 
         "h2h": f"{home_team_id}-{away_team_id}",
         "last": last
     }
-    headers = _get_headers()
+    return _request(url, params)
 
-    resp = requests.get(url, headers=headers, params=params, timeout=20)
-    if resp.status_code != 200:
-        raise ApiSportsError(f"Erro na API-SPORTS (headtohead): {resp.status_code} - {resp.text}")
 
-    return resp.json()
+def get_team_last_fixtures(team_id: int, last: int = 10) -> dict:
+    """
+    Busca os últimos jogos (fixtures) de um time,
+    tanto em casa quanto fora, já finalizados.
+    """
+    url = f"{BASE_URL_FOOTBALL}/fixtures"
+    params = {
+        "team": team_id,
+        "last": last
+        # podemos filtrar status se quiser: ex status=FT
+    }
+    return _request(url, params)
