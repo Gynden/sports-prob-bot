@@ -278,146 +278,71 @@ def admin_ingest_bra(db: Session = Depends(get_db)):
 # -----------------------------------------------------------------------------
 
 @app.get("/live/bra")
-def live_bra():
+async def live_bra():
     """
-    Retorna os jogos ao vivo do Brasileirão Série A.
+    Retorna os jogos ao vivo do Brasileirão Série A,
+    filtrando a partir de TODOS os jogos ao vivo da API-FOOTBALL.
     """
-    return fetch_live_bra_fixtures()
-
-
-# -----------------------------------------------------------------------------
-# 2) DETALHE DE UM JOGO AO VIVO – /live/bra/{fixture_id}
-# -----------------------------------------------------------------------------
-
-@app.get("/live/bra/{fixture_id}")
-def live_bra_detail(fixture_id: int):
-    """
-    Detalhe de um jogo específico ao vivo.
-    """
-    fixture = fetch_fixture_by_id(fixture_id)
-    return fixture
-
-
-# -----------------------------------------------------------------------------
-# 3) HISTÓRICO + AO VIVO – /probabilities/bra/live/{fixture_id}
-# -----------------------------------------------------------------------------
-
-@app.get("/probabilities/bra/live/{fixture_id}")
-def bra_live_probabilities(
-    fixture_id: int,
-    last_matches: int = 10,
-    db: Session = Depends(get_db),
-):
-    """
-    Junta histórico da BRA.xlsx + informações AO VIVO do jogo.
-    Retorna probabilidades pré-jogo e ajustadas pelo placar atual.
-    """
-    live = fetch_fixture_by_id(fixture_id)
-
-    home_name = live["home_team"]
-    away_name = live["away_team"]
-
-    if not home_name or not away_name:
+    if not FOOTBALL_API_KEY:
         raise HTTPException(
-            status_code=400,
-            detail="Não foi possível identificar os nomes dos times no fixture.",
+            status_code=500,
+            detail="FOOTBALL_API_KEY (ou API_FOOTBALL_KEY) não configurada no ambiente do Render."
         )
 
-    try:
-        hist_result = analyze_match(db, home_name, away_name, last_matches)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    # Esperamos que o analyze_match retorne as probabilidades nesses campos:
-    hist_probs = {
-        "home_win": float(hist_result.get("home_win_prob", 0.33)),
-        "draw": float(hist_result.get("draw_prob", 0.33)),
-        "away_win": float(hist_result.get("away_win_prob", 0.33)),
+    url = f"{FOOTBALL_API_BASE.rstrip('/')}/fixtures"
+    # pede TODOS os jogos ao vivo do mundo
+    params = {
+        "live": "all",
+    }
+    headers = {
+        "x-apisports-key": FOOTBALL_API_KEY,
     }
 
-    adjusted = adjust_probabilities_with_live(hist_probs, live)
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(url, params=params, headers=headers)
 
-    return {
-        "fixture": live,
-        "pre_match_probabilities": hist_probs,
-        "adjusted_probabilities": adjusted,
-        "params": {
-            "last_matches": last_matches,
-        },
-    }
-
-
-# -----------------------------------------------------------------------------
-# 4) BOT DE SINAIS – /signals/bra/live/{fixture_id}
-# -----------------------------------------------------------------------------
-
-@app.get("/signals/bra/live/{fixture_id}")
-def bra_live_signal(
-    fixture_id: int,
-    last_matches: int = 10,
-    db: Session = Depends(get_db),
-):
-    """
-    Gera um 'sinal' simples (Back casa / empate / fora) usando
-    histórico + jogo ao vivo.
-    """
-    live = fetch_fixture_by_id(fixture_id)
-
-    home_name = live["home_team"]
-    away_name = live["away_team"]
-
-    if not home_name or not away_name:
+    if r.status_code != 200:
         raise HTTPException(
-            status_code=400,
-            detail="Não foi possível identificar os nomes dos times no fixture.",
+            status_code=502,
+            detail=f"Erro ao consultar API-FOOTBALL: {r.status_code} - {r.text}",
         )
 
-    try:
-        hist_result = analyze_match(db, home_name, away_name, last_matches)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    data = r.json()
+    all_live = data.get("response", [])
 
-    hist_probs = {
-        "home_win": float(hist_result.get("home_win_prob", 0.33)),
-        "draw": float(hist_result.get("draw_prob", 0.33)),
-        "away_win": float(hist_result.get("away_win_prob", 0.33)),
-    }
+    jogos_bra_serie_a = []
 
-    adjusted = adjust_probabilities_with_live(hist_probs, live)
+    for item in all_live:
+        league = item.get("league", {}) or {}
+        fixture = item.get("fixture", {}) or {}
+        teams = item.get("teams", {}) or {}
+        goals = item.get("goals", {}) or {}
 
-    # Escolhe o melhor resultado
-    best_key = max(adjusted, key=adjusted.get)
-    confidence = adjusted[best_key]
+        country = (league.get("country") or "").lower()
+        league_name = (league.get("name") or "").lower()
 
-    if best_key == "home_win":
-        label = "Back casa"
-    elif best_key == "away_win":
-        label = "Back fora"
-    else:
-        label = "Back empate / under gols"
+        # filtra só Brasil + Série A
+        if country != "brazil":
+            continue
+        if "serie a" not in league_name:
+            continue
 
-    minute = live.get("minute") or 0
-    score_str = f"{live.get('home_goals', 0)}-{live.get('away_goals', 0)}"
-
-    signal_text = (
-        f"Sugestão: {label} "
-        f"({confidence:.1%} de probabilidade ajustada) "
-        f"em {home_name} x {away_name}, "
-        f"minuto {minute}, placar {score_str}."
-    )
+        jogos_bra_serie_a.append({
+            "fixture_id": fixture.get("id"),
+            "date": fixture.get("date"),
+            "status": fixture.get("status", {}).get("short"),
+            "league": league.get("name"),
+            "round": league.get("round"),
+            "home_team": teams.get("home", {}).get("name"),
+            "away_team": teams.get("away", {}).get("name"),
+            "home_goals": goals.get("home"),
+            "away_goals": goals.get("away"),
+        })
 
     return {
-        "match": f"{home_name} x {away_name}",
-        "minute": minute,
-        "score": score_str,
-        "best_outcome": best_key,
-        "confidence": confidence,
-        "signal": label,
-        "signal_text": signal_text,
-        "fixture": live,
-        "pre_match_probabilities": hist_probs,
-        "adjusted_probabilities": adjusted,
-        "params": {
-            "last_matches": last_matches,
-        },
+        # quantos jogos ao vivo o mundo todo tem
+        "raw_count": len(all_live),
+        # quantos a gente filtrou como Brasileirão Série A
+        "count": len(jogos_bra_serie_a),
+        "matches": jogos_bra_serie_a,
     }
