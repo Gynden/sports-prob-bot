@@ -11,18 +11,14 @@ from api_sports import (
     get_head_to_head_fixtures,
     get_team_last_fixtures,
 )
-from api_futebol import (
-    ApiFutebolError,
-    list_campeonatos,
-    get_championship_table,
-    get_time_partidas_anteriores,
-)
 
 # Cria as tabelas no banco ao iniciar a API
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sports Probabilities API")
 
+
+# ----------------- CONEXÃO COM O BANCO ----------------- #
 
 def get_db():
     db = SessionLocal()
@@ -32,15 +28,20 @@ def get_db():
         db.close()
 
 
+# ----------------- ROOT ----------------- #
+
 @app.get("/")
 def root():
     return {"status": "ok", "message": "API de probabilidades esportivas no ar 🚀"}
 
 
-# --------- ESPORTES (SPORTS) --------- #
+# ----------------- ESPORTES ----------------- #
 
 @app.post("/sports/init")
 def init_sports(db: Session = Depends(get_db)):
+    """
+    Cria esportes básicos na tabela sports.
+    """
     default_sports = ["soccer", "basketball", "esports"]
     created = []
 
@@ -61,13 +62,19 @@ def list_sports(db: Session = Depends(get_db)):
     return [{"id": s.id, "name": s.name} for s in sports]
 
 
-# --------- LIGAS (SOCCER) VIA API-SPORTS --------- #
+# ----------------- LIGAS (via API-SPORTS) ----------------- #
 
 @app.post("/ingest/soccer/leagues")
 def ingest_soccer_leagues(country: str = "Brazil", db: Session = Depends(get_db)):
+    """
+    Busca ligas de futebol na API-SPORTS e salva na tabela leagues.
+    """
     soccer = db.query(Sport).filter(Sport.name == "soccer").first()
     if not soccer:
-        raise HTTPException(status_code=400, detail="Sport 'soccer' não encontrado. Rode /sports/init primeiro.")
+        raise HTTPException(
+            status_code=400,
+            detail="Sport 'soccer' não encontrado. Rode /sports/init primeiro."
+        )
 
     try:
         data = get_soccer_leagues(country=country)
@@ -92,6 +99,7 @@ def ingest_soccer_leagues(country: str = "Brazil", db: Session = Depends(get_db)
             .filter(League.name == league_name, League.country == league_country)
             .first()
         )
+
         if not existing:
             league = League(
                 name=league_name,
@@ -124,10 +132,13 @@ def list_leagues(db: Session = Depends(get_db)):
     ]
 
 
-# --------- DEBUG API-SPORTS: BUSCA TIME --------- #
+# ----------------- DEBUG API-SPORTS ----------------- #
 
 @app.get("/debug/soccer/search-team")
 def debug_search_team(name: str, country: str | None = None):
+    """
+    Apenas para testar a busca de time na API-SPORTS.
+    """
     try:
         data = search_soccer_team(name, country)
     except ApiSportsError as e:
@@ -135,24 +146,27 @@ def debug_search_team(name: str, country: str | None = None):
     return data
 
 
-# --------- PROBABILIDADE OVER 2.5 (API-SPORTS) --------- #
+# ----------------- PROBABILIDADE OVER 2.5 ----------------- #
 
 class Over25Request(BaseModel):
     home_team: str = Field(..., description="Nome do time da casa (ex: Flamengo)")
     away_team: str = Field(..., description="Nome do time visitante (ex: Palmeiras)")
     country: str | None = Field(
         default=None,
-        description="País dos times (opcional, ex: Brazil, England)"
+        description="País dos times (opcional, ex: Brazil, England)",
     )
     last_matches: int = Field(
         default=10,
         ge=1,
         le=50,
-        description="Quantidade de jogos recentes para analisar"
+        description="Quantidade de jogos recentes para analisar",
     )
 
 
 def _search_team_or_404(name: str, country: str | None):
+    """
+    Busca o time na API-SPORTS. Se não encontrar com país, tenta sem país.
+    """
     try:
         data = search_soccer_team(name, country)
     except ApiSportsError as e:
@@ -160,6 +174,7 @@ def _search_team_or_404(name: str, country: str | None):
 
     resp = data.get("response", [])
 
+    # Se não achou com país, tenta sem país
     if not resp and country:
         try:
             data = search_soccer_team(name, None)
@@ -174,6 +189,10 @@ def _search_team_or_404(name: str, country: str | None):
 
 
 def _analyze_over25_from_fixtures(fixtures: list[dict]) -> tuple[int, int, int]:
+    """
+    Conta quantos jogos tiveram over 2.5 gols, quantos under/igual,
+    e quantos jogos foram válidos (com placar preenchido).
+    """
     total_jogos_validos = 0
     over25_hits = 0
     under_or_equal_hits = 0
@@ -183,6 +202,7 @@ def _analyze_over25_from_fixtures(fixtures: list[dict]) -> tuple[int, int, int]:
         home_goals = goals.get("home")
         away_goals = goals.get("away")
 
+        # Ignora jogos sem gols definidos (em andamento ou sem dados)
         if home_goals is None or away_goals is None:
             continue
 
@@ -200,9 +220,12 @@ def _analyze_over25_from_fixtures(fixtures: list[dict]) -> tuple[int, int, int]:
 @app.post("/probabilities/soccer/over25")
 def probability_over25(req: Over25Request):
     """
-    Calcula probabilidade de over 2.5 usando API-SPORTS.
+    Calcula probabilidade de over 2.5 gols usando:
+    1) Confrontos diretos (H2H) entre os times;
+    2) Se H2H não tiver dados suficientes, usa os últimos jogos de cada time.
     """
 
+    # 1) Buscar infos básicas dos times
     home_team_info = _search_team_or_404(req.home_team, req.country)
     away_team_info = _search_team_or_404(req.away_team, req.country)
 
@@ -210,9 +233,12 @@ def probability_over25(req: Over25Request):
     away_id = away_team_info.get("id")
 
     if home_id is None or away_id is None:
-        raise HTTPException(status_code=500, detail="Não foi possível obter os IDs dos times na API-Sports.")
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível obter os IDs dos times na API-SPORTS.",
+        )
 
-    # 1) H2H
+    # 2) Tentar H2H
     try:
         h2h_data = get_head_to_head_fixtures(home_id, away_id, last=req.last_matches)
     except ApiSportsError as e:
@@ -224,6 +250,7 @@ def probability_over25(req: Over25Request):
     if total_validos_h2h > 0:
         prob_over25 = over25_h2h / total_validos_h2h
         prob_under_or_equal = under_h2h / total_validos_h2h
+
         return {
             "mode": "head_to_head",
             "home_team": {"id": home_id, "name": home_team_info.get("name")},
@@ -237,7 +264,7 @@ def probability_over25(req: Over25Request):
             },
         }
 
-    # 2) Últimos jogos dos times
+    # 3) Se H2H não tiver dados, usar últimos jogos de cada time
     try:
         home_last = get_team_last_fixtures(home_id, last=req.last_matches)
         away_last = get_team_last_fixtures(away_id, last=req.last_matches)
@@ -250,6 +277,7 @@ def probability_over25(req: Over25Request):
 
     total_validos_comb, over25_comb, under_comb = _analyze_over25_from_fixtures(combined_fixtures)
 
+    # 4) Se mesmo assim não tiver dados, devolve no_data (não quebra)
     if total_validos_comb == 0:
         return {
             "mode": "no_data",
@@ -272,36 +300,9 @@ def probability_over25(req: Over25Request):
         "away_team": {"id": away_id, "name": away_team_info.get("name")},
         "matches_analyzed": total_validos_comb,
         "over25_probability_percent": round(prob_over25 * 100, 2),
-        "under25_or_equal_probability_percent": round(prob_under_equal * 100, 2),
+        "under25_or_equal_probability_percent": round(prob_under_or_equal * 100, 2),
         "details": {
             "over25_hits": over25_comb,
             "under_or_equal_hits": under_comb,
         },
     }
-
-
-# --------- INTEGRAÇÃO API-FUTEBOL (BRASIL) --------- #
-
-@app.get("/br/campeonatos")
-def br_list_campeonatos():
-    try:
-        return list_campeonatos()
-    except ApiFutebolError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/br/campeonatos/{campeonato_id}/tabela")
-def br_championship_table(campeonato_id: int):
-    try:
-        return get_championship_table(campeonato_id)
-    except ApiFutebolError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/br/times/{time_id}/partidas-anteriores")
-def br_time_partidas_anteriores(time_id: int):
-    try:
-        data = get_time_partidas_anteriores(time_id)
-    except ApiFutebolError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return data
