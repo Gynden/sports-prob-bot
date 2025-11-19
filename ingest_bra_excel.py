@@ -7,7 +7,7 @@ from database import engine, SessionLocal, Base
 from models import Team, Match
 
 # URL da planilha do Brasil no football-data.co.uk
-BRA_XLSX_URL = "https://www.football-data.co.uk/new/BRA.xlsx"
+BRA_XLSX_URL = "https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fwww.football-data.co.uk%2Fnew%2FBRA.xlsx&wdOrigin=BROWSELINK"
 
 
 def create_tables():
