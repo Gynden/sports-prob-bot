@@ -9,6 +9,7 @@ from api_sports import (
     ApiSportsError,
     search_soccer_team,
     get_head_to_head_fixtures,
+    get_team_last_fixtures,
 )
 
 # Cria as tabelas no banco ao iniciar a API
@@ -95,7 +96,6 @@ def ingest_soccer_leagues(country: str = "Brazil", db: Session = Depends(get_db)
         if not league_name:
             continue
 
-        # Verifica se já existe liga com mesmo nome + país
         existing = (
             db.query(League)
             .filter(League.name == league_name, League.country == league_country)
@@ -164,7 +164,7 @@ class Over25Request(BaseModel):
         default=10,
         ge=1,
         le=50,
-        description="Quantidade de confrontos diretos recentes para analisar"
+        description="Quantidade de jogos recentes para analisar"
     )
 
 
@@ -180,7 +180,6 @@ def _search_team_or_404(name: str, country: str | None):
 
     resp = data.get("response", [])
 
-    # se não achou e tinha país, tenta sem país
     if not resp and country:
         try:
             data = search_soccer_team(name, None)
@@ -194,38 +193,13 @@ def _search_team_or_404(name: str, country: str | None):
     return resp[0].get("team", {})
 
 
-@app.post("/probabilities/soccer/over25")
-def probability_over25(req: Over25Request):
+def _analyze_over25_from_fixtures(fixtures: list[dict]) -> tuple[int, int, int]:
     """
-    Calcula a probabilidade de OVER 2.5 gols com base
-    nos confrontos diretos recentes entre dois times.
+    Recebe uma lista de fixtures (como vem da API) e conta:
+    - jogos válidos
+    - quantos bateram over 2.5
+    - quantos ficaram em under ou igual
     """
-
-    # 1) Buscar times com fallback
-    home_team_info = _search_team_or_404(req.home_team, req.country)
-    away_team_info = _search_team_or_404(req.away_team, req.country)
-
-    home_id = home_team_info.get("id")
-    away_id = away_team_info.get("id")
-
-    if home_id is None or away_id is None:
-        raise HTTPException(status_code=500, detail="Não foi possível obter os IDs dos times na API-Sports.")
-
-    # 2) Buscar confrontos diretos
-    try:
-        h2h_data = get_head_to_head_fixtures(home_id, away_id, last=req.last_matches)
-    except ApiSportsError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    fixtures = h2h_data.get("response", [])
-
-    if not fixtures:
-        raise HTTPException(
-            status_code=400,
-            detail="Nenhum confronto direto recente encontrado entre esses times."
-        )
-
-    # 3) Calcular probabilidade de OVER 2.5 gols
     total_jogos_validos = 0
     over25_hits = 0
     under_or_equal_hits = 0
@@ -246,16 +220,89 @@ def probability_over25(req: Over25Request):
         else:
             under_or_equal_hits += 1
 
-    if total_jogos_validos == 0:
+    return total_jogos_validos, over25_hits, under_or_equal_hits
+
+
+@app.post("/probabilities/soccer/over25")
+def probability_over25(req: Over25Request):
+    """
+    Calcula a probabilidade de OVER 2.5 gols.
+    Estratégia:
+    1) Tenta usar confrontos diretos (H2H).
+    2) Se não houver H2H suficiente, usa os últimos jogos de cada time
+       separadamente (home + away) como amostra.
+    """
+
+    # 1) Buscar times com fallback
+    home_team_info = _search_team_or_404(req.home_team, req.country)
+    away_team_info = _search_team_or_404(req.away_team, req.country)
+
+    home_id = home_team_info.get("id")
+    away_id = away_team_info.get("id")
+
+    if home_id is None or away_id is None:
+        raise HTTPException(status_code=500, detail="Não foi possível obter os IDs dos times na API-Sports.")
+
+    # ---------- TENTATIVA 1: H2H ---------- #
+    try:
+        h2h_data = get_head_to_head_fixtures(home_id, away_id, last=req.last_matches)
+    except ApiSportsError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    h2h_fixtures = h2h_data.get("response", [])
+
+    total_validos_h2h, over25_h2h, under_h2h = _analyze_over25_from_fixtures(h2h_fixtures)
+
+    # Se tivermos pelo menos 1 jogo válido de H2H, usamos só H2H
+    if total_validos_h2h > 0:
+        prob_over25 = over25_h2h / total_validos_h2h
+        prob_under_or_equal = under_h2h / total_validos_h2h
+
+        return {
+            "mode": "head_to_head",
+            "home_team": {
+                "id": home_id,
+                "name": home_team_info.get("name"),
+            },
+            "away_team": {
+                "id": away_id,
+                "name": away_team_info.get("name"),
+            },
+            "matches_analyzed": total_validos_h2h,
+            "over25_probability_percent": round(prob_over25 * 100, 2),
+            "under25_or_equal_probability_percent": round(prob_under_or_equal * 100, 2),
+            "details": {
+                "over25_hits": over25_h2h,
+                "under_or_equal_hits": under_h2h,
+            },
+        }
+
+    # ---------- TENTATIVA 2: ÚLTIMOS JOGOS DE CADA TIME ---------- #
+    try:
+        home_last = get_team_last_fixtures(home_id, last=req.last_matches)
+        away_last = get_team_last_fixtures(away_id, last=req.last_matches)
+    except ApiSportsError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    home_fixtures = home_last.get("response", [])
+    away_fixtures = away_last.get("response", [])
+
+    # junta todos os jogos recentes dos dois times
+    combined_fixtures = home_fixtures + away_fixtures
+
+    total_validos_comb, over25_comb, under_comb = _analyze_over25_from_fixtures(combined_fixtures)
+
+    if total_validos_comb == 0:
         raise HTTPException(
             status_code=400,
-            detail="Não há jogos com placar válido para analisar."
+            detail="Não há jogos recentes com placar válido para analisar (H2H nem últimos jogos)."
         )
 
-    prob_over25 = over25_hits / total_jogos_validos
-    prob_under_or_equal = under_or_equal_hits / total_jogos_validos
+    prob_over25 = over25_comb / total_validos_comb
+    prob_under_or_equal = under_comb / total_validos_comb
 
     return {
+        "mode": "teams_recent_matches",
         "home_team": {
             "id": home_id,
             "name": home_team_info.get("name"),
@@ -264,11 +311,11 @@ def probability_over25(req: Over25Request):
             "id": away_id,
             "name": away_team_info.get("name"),
         },
-        "matches_analyzed": total_jogos_validos,
+        "matches_analyzed": total_validos_comb,
         "over25_probability_percent": round(prob_over25 * 100, 2),
-        "under25_or_equal_probability_percent": round(prob_under_or_equal * 100, 2),
+        "under25_or_equal_probability_percent": round(prob_under_equal * 100, 2),
         "details": {
-            "over25_hits": over25_hits,
-            "under_or_equal_hits": under_or_equal_hits,
+            "over25_hits": over25_comb,
+            "under_or_equal_hits": under_comb,
         },
     }
