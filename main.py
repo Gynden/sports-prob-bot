@@ -254,12 +254,10 @@ def probability_over25(req: Over25Request):
     total_validos_h2h, over25_h2h, under_h2h = _analyze_over25_from_fixtures(h2h_fixtures)
 
     # Se tivermos pelo menos 1 jogo válido de H2H, usamos só H2H
-    if total_validos_h2h > 0:
-        prob_over25 = over25_h2h / total_validos_h2h
-        prob_under_or_equal = under_h2h / total_validos_h2h
-
+        if total_validos_comb == 0:
+        # Sem nenhum jogo com placar válido: devolve "no_data" em vez de erro
         return {
-            "mode": "head_to_head",
+            "mode": "no_data",
             "home_team": {
                 "id": home_id,
                 "name": home_team_info.get("name"),
@@ -268,14 +266,36 @@ def probability_over25(req: Over25Request):
                 "id": away_id,
                 "name": away_team_info.get("name"),
             },
-            "matches_analyzed": total_validos_h2h,
-            "over25_probability_percent": round(prob_over25 * 100, 2),
-            "under25_or_equal_probability_percent": round(prob_under_or_equal * 100, 2),
+            "matches_analyzed": 0,
+            "over25_probability_percent": None,
+            "under25_or_equal_probability_percent": None,
             "details": {
-                "over25_hits": over25_h2h,
-                "under_or_equal_hits": under_h2h,
+                "reason": "Não há jogos recentes com placar válido para analisar (H2H nem últimos jogos)."
             },
         }
+
+    prob_over25 = over25_comb / total_validos_comb
+    prob_under_or_equal = under_comb / total_validos_comb
+
+    return {
+        "mode": "teams_recent_matches",
+        "home_team": {
+            "id": home_id,
+            "name": home_team_info.get("name"),
+        },
+        "away_team": {
+            "id": away_id,
+            "name": away_team_info.get("name"),
+        },
+        "matches_analyzed": total_validos_comb,
+        "over25_probability_percent": round(prob_over25 * 100, 2),
+        "under25_or_equal_probability_percent": round(prob_under_equal * 100, 2),
+        "details": {
+            "over25_hits": over25_comb,
+            "under_or_equal_hits": under_comb,
+        },
+    }
+
 
     # ---------- TENTATIVA 2: ÚLTIMOS JOGOS DE CADA TIME ---------- #
     try:
