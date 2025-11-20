@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Efeitos extras de fogo -->
   <style>
+    /* Fundo em chamas suave */
     @keyframes fireGlow {
-      0%   { transform: translateY(0px) scale(1);   opacity: 0.5; }
-      50%  { transform: translateY(-8px) scale(1.05); opacity: 0.9; }
-      100% { transform: translateY(0px) scale(1);   opacity: 0.5; }
+      0%   { transform: translateY(0px) scale(1);   opacity: 0.45; }
+      50%  { transform: translateY(-8px) scale(1.05); opacity: 0.85; }
+      100% { transform: translateY(0px) scale(1);   opacity: 0.45; }
     }
     .fire-bg {
       background:
@@ -20,34 +20,86 @@
           transparent 55%)
         ,
         radial-gradient(circle at 80% 100%,
-          rgba(251, 191, 36, 0.2),
-          transparent 55%);
+          rgba(251, 191, 36, 0.18),
+          transparent 60%);
       pointer-events: none;
       animation: fireGlow 9s ease-in-out infinite;
     }
+
+    /* Botão principal em gradiente de fogo */
     .fire-button {
       background-image: linear-gradient(90deg, #ef4444, #f97316, #fb923c);
       box-shadow:
-        0 0 16px rgba(248, 113, 113, 0.6),
-        0 0 32px rgba(249, 115, 22, 0.5);
+        0 0 18px rgba(248, 113, 113, 0.7),
+        0 0 36px rgba(249, 115, 22, 0.6);
     }
     .fire-button:hover {
-      filter: brightness(1.1);
+      filter: brightness(1.08);
     }
+
+    /* Brasas passando no fundo */
+    .embers-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: -1;
+    }
+    .ember {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 9999px;
+      background: radial-gradient(circle,
+        rgba(252, 211, 77, 1) 0,
+        rgba(248, 113, 113, 0.85) 40%,
+        transparent 70%);
+      filter: blur(0.3px);
+      opacity: 0;
+    }
+
+    @keyframes emberDrift {
+      0%   { transform: translate3d(0,0,0) scale(0.9); opacity: 0; }
+      10%  { opacity: 0.7; }
+      50%  { transform: translate3d(40px,-140px,0) scale(1.05); opacity: 0.9; }
+      100% { transform: translate3d(80px,-280px,0) scale(1.1); opacity: 0; }
+    }
+
+    /* Várias brasas em posições/velocidades diferentes */
+    .ember-1  { left: 10%; bottom: -8%;  animation: emberDrift 16s linear infinite; }
+    .ember-2  { left: 25%; bottom: -10%; animation: emberDrift 19s linear infinite 2s; }
+    .ember-3  { left: 40%; bottom: -12%; animation: emberDrift 17s linear infinite 4s; }
+    .ember-4  { left: 60%; bottom: -9%;  animation: emberDrift 21s linear infinite 1s; }
+    .ember-5  { left: 75%; bottom: -11%; animation: emberDrift 18s linear infinite 3s; }
+    .ember-6  { left: 90%; bottom: -7%;  animation: emberDrift 22s linear infinite 5s; }
+    .ember-7  { left: 15%; bottom: -15%; animation: emberDrift 24s linear infinite 7s; }
+    .ember-8  { left: 50%; bottom: -16%; animation: emberDrift 20s linear infinite 9s; }
   </style>
 </head>
+
 <body class="min-h-screen bg-slate-950 text-slate-50 relative overflow-hidden">
 
   <!-- Glow de fogo no fundo -->
   <div class="fire-bg fixed inset-0 blur-3xl opacity-70"></div>
 
+  <!-- Camada de brasas passando -->
+  <div class="embers-layer">
+    <span class="ember ember-1"></span>
+    <span class="ember ember-2"></span>
+    <span class="ember ember-3"></span>
+    <span class="ember ember-4"></span>
+    <span class="ember ember-5"></span>
+    <span class="ember ember-6"></span>
+    <span class="ember ember-7"></span>
+    <span class="ember ember-8"></span>
+  </div>
+
   <!-- TOPO -->
   <header class="relative border-b border-slate-800/70 bg-gradient-to-r from-slate-950/90 via-slate-950/80 to-slate-950/90 backdrop-blur">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <!-- Ícone bola pegando fogo (versão nova) -->
+        <!-- Ícone: bola pegando fogo -->
         <div class="relative">
-          <!-- bola -->
           <div
             class="w-10 h-10 rounded-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900
                    border border-amber-400/70 flex items-center justify-center
@@ -55,7 +107,6 @@
           >
             <span class="text-2xl">⚽</span>
           </div>
-          <!-- chama -->
           <div
             class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full
                    bg-gradient-to-tr from-red-600 via-orange-500 to-amber-300
@@ -95,7 +146,7 @@
   <main class="relative max-w-6xl mx-auto px-4 py-6 grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)] gap-6">
 
     <!-- COLUNA ESQUERDA: CHAT / FORM -->
-    <section class="bg-slate-950/80 border border-red-500/25 rounded-3xl p-4 md:p-6 flex flex-col gap-4 shadow-2xl shadow-black/70">
+    <section class="bg-slate-950/85 border border-red-500/25 rounded-3xl p-4 md:p-6 flex flex-col gap-4 shadow-2xl shadow-black/70">
       <!-- Cabeçalho do chat -->
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
@@ -105,7 +156,8 @@
           <div>
             <h2 class="text-sm font-semibold">Chat de Análise Esportiva</h2>
             <p class="text-[11px] text-slate-400">
-              Pergunte em aberto sobre um jogo (gols, cartões, escanteios, etc.) e veja a resposta como se fosse um chat.
+              Pergunte em aberto sobre qualquer mercado de futebol (gols, cartões, escanteios, HT/FT, etc.)
+              e veja a resposta como se fosse um chat.
             </p>
           </div>
         </div>
@@ -118,12 +170,15 @@
           <span class="ml-1">
             Escolha o <span class="font-semibold text-amber-200">time da casa</span>,
             o <span class="font-semibold text-amber-200">time visitante</span>,
-            diga <span class="font-semibold text-amber-200">quantos jogos recentes</span> quer usar de histórico
-            e faça sua <span class="font-semibold text-amber-200">pergunta em aberto</span> sobre o confronto.
+            defina <span class="font-semibold text-amber-200">quantos jogos recentes</span> quer usar de histórico
+            e mande sua <span class="font-semibold text-amber-200">pergunta em aberto</span>
+            sobre esse jogo (over, cartões, escanteios, HT/FT, ambas marcam…).
           </span>
         </p>
         <p class="mt-2 text-[11px] text-slate-400">
-          Exemplo: <span class="italic">"No jogo Flamengo x Palmeiras de hoje, vale buscar over 2.5 gols ou linha de cartões?"</span>
+          Exemplo: <span class="italic">
+            "No jogo Corinthians x São Paulo hoje, vale mais over 2.5 gols, linha de cartões ou escanteios no 1º tempo?"
+          </span>
         </p>
       </div>
 
@@ -170,7 +225,7 @@
           <textarea
             id="user-question"
             rows="2"
-            placeholder='Ex.: "No jogo de hoje vale mais over 2.5 gols, escanteios ou cartões?"'
+            placeholder='Ex.: "Vale buscar over 2.5 gols ou linha de cartões no 1º tempo?"'
             class="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-orange-500/70 resize-none"
           ></textarea>
         </div>
@@ -193,7 +248,7 @@
     <!-- COLUNA DIREITA: JOGOS AO VIVO + COMO USAR -->
     <section class="relative flex flex-col gap-4">
       <!-- Jogos ao vivo -->
-      <div class="bg-slate-950/80 border border-red-500/30 rounded-3xl p-4 md:p-5 shadow-2xl shadow-black/70 flex flex-col gap-3">
+      <div class="bg-slate-950/85 border border-red-500/30 rounded-3xl p-4 md:p-5 shadow-2xl shadow-black/70 flex flex-col gap-3">
         <div class="flex items-center justify-between gap-3">
           <div class="flex flex-col gap-0.5">
             <h2 class="text-sm font-semibold flex items-center gap-1">
@@ -203,7 +258,7 @@
               </span>
             </h2>
             <p class="text-[11px] text-slate-400">
-              Dados em tempo real via API-FOOTBALL. Clique em um jogo para gerar uma análise + sinal.
+              Dados em tempo real via API-FOOTBALL. Clique em um jogo para gerar uma análise + sinal de estudo.
             </p>
           </div>
           <button id="btn-refresh-live"
@@ -221,10 +276,10 @@
       </div>
 
       <!-- Como usar -->
-      <div class="bg-slate-950/80 border border-red-500/20 rounded-3xl p-4 md:p-5 text-xs space-y-2 shadow-xl shadow-black/70">
+      <div class="bg-slate-950/85 border border-red-500/20 rounded-3xl p-4 md:p-5 text-xs space-y-2 shadow-xl shadow-black/70">
         <h3 class="text-sm font-semibold mb-1">Como usar essa tela</h3>
         <ul class="list-disc list-inside text-[11px] text-slate-300 space-y-1">
-          <li>Use o chat à esquerda para análises <span class="font-semibold text-amber-200">pré-jogo</span> usando apenas o histórico da BRA.xlsx.</li>
+          <li>Use o chat à esquerda para análises <span class="font-semibold text-amber-200">pré-jogo</span> ou gerais.</li>
           <li>Use os jogos ao vivo à direita para preencher os times automaticamente e rodar a análise em tempo real.</li>
           <li>Tudo aqui é para <span class="font-semibold text-amber-200">estudo e simulação</span>. Não é recomendação financeira.</li>
         </ul>
@@ -331,8 +386,17 @@
       return (value * 100).toFixed(1) + "%";
     }
 
+    function toNumberOrNull(v) {
+      if (typeof v === "number") return v;
+      if (typeof v === "string") {
+        const parsed = parseFloat(v);
+        return isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    }
+
     // =========================
-    // RODAR ANÁLISE
+    // RODAR ANÁLISE (IA de texto para qualquer pergunta)
     // =========================
     async function runAnalysis(home, away, lastMatches, questionText) {
       if (!apiOnline) {
@@ -342,11 +406,13 @@
 
       const pergunta = questionText && questionText.trim()
         ? questionText.trim()
-        : "Análise rápida desse confronto (gols, cartões e escanteios).";
+        : "Análise rápida desse confronto (gols, cartões, escanteios, HT/FT).";
 
       addMessage(
         "user",
-        `🔥 <strong>${home}</strong> x <strong>${away}</strong><br/>Pergunta: <em>${pergunta}</em><br/><span class="text-slate-300">Usando os últimos <strong>${lastMatches}</strong> jogos.</span>`
+        `🔥 <strong>${home}</strong> x <strong>${away}</strong><br/>` +
+        `Pergunta: <em>${pergunta}</em><br/>` +
+        `<span class="text-slate-300">Usando os últimos <strong>${lastMatches}</strong> jogos.</span>`
       );
 
       try {
@@ -373,12 +439,23 @@
         const data = await res.json();
         const probs = data.probabilities || data.probs || {};
 
-        const pHome = percent(probs.home_win ?? probs.home ?? null);
-        const pDraw = percent(probs.draw ?? probs.empate ?? null);
-        const pAway = percent(probs.away_win ?? probs.away ?? null);
+        const rawHome = probs.home_win ?? probs.home ?? null;
+        const rawDraw = probs.draw ?? probs.empate ?? null;
+        const rawAway = probs.away_win ?? probs.away ?? null;
+
+        const numHome = toNumberOrNull(rawHome);
+        const numDraw = toNumberOrNull(rawDraw);
+        const numAway = toNumberOrNull(rawAway);
+
+        const pHome = numHome != null ? percent(numHome) : "-";
+        const pDraw = numDraw != null ? percent(numDraw) : "-";
+        const pAway = numAway != null ? percent(numAway) : "-";
+
+        const goalsAvg = data.goals_avg || (data.stats && data.stats.goals_avg) || null;
+        const gVal = goalsAvg && goalsAvg.toFixed ? goalsAvg.toFixed(2) : goalsAvg;
 
         let html = `
-          <p><strong>Resposta para ${home} x ${away}:</strong></p>
+          <p><strong>Resumo frio de probabilidades para ${home} x ${away} (FT):</strong></p>
           <ul class="mt-1 list-disc list-inside space-y-0.5">
             <li>Vitória do mandante: <span class="font-semibold text-emerald-300">${pHome}</span></li>
             <li>Empate: <span class="font-semibold text-sky-300">${pDraw}</span></li>
@@ -386,19 +463,132 @@
           </ul>
         `;
 
-        if (data.goals_avg || (data.stats && data.stats.goals_avg)) {
-          const g = data.goals_avg || data.stats.goals_avg;
-          const value = g && g.toFixed ? g.toFixed(2) : g;
-          if (value) {
-            html += `<p class="mt-1">Média de gols recente do confronto: <span class="font-semibold">${value}</span>.</p>`;
+        if (gVal) {
+          html += `
+            <p class="mt-1">
+              Média de gols recente desse confronto: <span class="font-semibold">${gVal}</span> gols por jogo.
+            </p>
+          `;
+        }
+
+        // --------- Interpretação da pergunta ----------
+        const q = pergunta.toLowerCase();
+
+        const querGols =
+          q.includes("over") ||
+          q.includes("under") ||
+          q.includes("gols") ||
+          q.includes("gol");
+        const querOver25 =
+          q.includes("over 2.5") ||
+          q.includes("over2.5") ||
+          q.includes("2,5 gols") ||
+          q.includes("2.5 gols");
+        const querAmbas =
+          q.includes("ambas marcam") ||
+          q.includes("btts");
+        const querCartoes =
+          q.includes("cartão") || q.includes("cartoes") || q.includes("cartões") ||
+          q.includes("amarelo") || q.includes("vermelho");
+        const querEscanteios =
+          q.includes("escanteio") || q.includes("escanteios") ||
+          q.includes("corner") || q.includes("corners");
+        const querPrimeiroTempo =
+          q.includes("primeiro tempo") || q.includes("1º tempo") ||
+          q.includes("1t") || q.includes("1 t");
+        const querSegundoTempo =
+          q.includes("segundo tempo") || q.includes("2º tempo") ||
+          q.includes("2t") || q.includes("2 t");
+
+        // Tom do jogo baseado em média de gols
+        let tomGols = "";
+        if (goalsAvg) {
+          if (goalsAvg >= 3.0) {
+            tomGols = "jogo com viés bem aberto, tendência a muitos gols e cenário agressivo.";
+          } else if (goalsAvg >= 2.4) {
+            tomGols = "jogo moderadamente aberto, com boa chance de pelo menos 2 gols e razoável para linhas intermediárias.";
+          } else if (goalsAvg >= 2.0) {
+            tomGols = "jogo equilibrado em gols, sem excesso de fireworks, mas também não tão travado.";
+          } else {
+            tomGols = "histórico mais amarrado, perfil de jogo mais under, com poucos placares elásticos.";
           }
         }
 
+        // Comentário para over 2.5
+        if (querGols || querOver25 || querPrimeiroTempo || querSegundoTempo || querAmbas) {
+          html += `<p class="mt-2 text-slate-300"><strong>Leitura para mercados de gols:</strong> `;
+
+          if (tomGols) {
+            html += tomGols + " ";
+          }
+
+          if (querOver25) {
+            if (!goalsAvg) {
+              html += `Sem a média exata, o <span class="font-semibold">over 2.5</span> fica numa zona mais especulativa. `;
+            } else if (goalsAvg >= 2.7) {
+              html += `Com essa média, o <span class="font-semibold text-emerald-300">over 2.5</span> é uma linha que faz sentido como estudo. `;
+            } else if (goalsAvg >= 2.2) {
+              html += `Aqui o <span class="font-semibold text-amber-200">over 2.5</span> é mais neutro: não é absurdo, mas exige gestão e momento de jogo a favor. `;
+            } else {
+              html += `Nesse histórico, o <span class="font-semibold text-rose-300">over 2.5</span> tende a ser agressivo; faria mais sentido pensar em gol a favor ou linha mais baixa. `;
+            }
+          }
+
+          if (querPrimeiroTempo) {
+            html += `Como estamos falando de <span class="font-semibold">1º tempo</span>, tudo que é linha de gols precisa ser ainda mais conservadora que no FT, porque temos menos tempo de bola rolando. `;
+          }
+          if (querSegundoTempo) {
+            html += `Para <span class="font-semibold">2º tempo</span>, o ideal é casar essa leitura com o placar ao vivo: jogos empatados ou com time precisando do resultado tendem a abrir mais. `;
+          }
+          if (querAmbas) {
+            html += `Mercado de <span class="font-semibold">ambas marcam</span> costuma andar junto com essa média de gols; jogos mais abertos e equilibrados tendem a favorecer esse tipo de cenário. `;
+          }
+
+          html += `</p>`;
+        }
+
+        // Comentário para cartões
+        if (querCartoes) {
+          html += `
+            <p class="mt-2 text-slate-300">
+              <strong>Leitura para cartões:</strong>
+              essa versão do robô usa principalmente <span class="font-semibold">resultados e gols</span> da BRA.xlsx.
+              Ainda não tenho uma base específica de cartões por jogo, então qualquer linha de cartões deve ser vista
+              apenas como <span class="font-semibold text-amber-200">filtro de estudo</span>.
+              Em geral, jogos mais equilibrados e de rivalidade alta costumam puxar mais cartões.
+            </p>
+          `;
+        }
+
+        // Comentário para escanteios
+        if (querEscanteios) {
+          html += `
+            <p class="mt-2 text-slate-300">
+              <strong>Leitura para escanteios:</strong>
+              não há estatística direta de escanteios nessa planilha, mas linhas de corners costumam acompanhar
+              tanto o volume ofensivo quanto a necessidade de resultado.
+              Jogos com tendência de pressão (mandante favorito, visitante recuado) tendem a gerar mais escanteios a favor do lado dominante.
+              Use essa leitura como complemento e nunca como sinal isolado.
+            </p>
+          `;
+        }
+
+        // Comentário HT/FT genérico
+        if (querPrimeiroTempo || querSegundoTempo) {
+          html += `
+            <p class="mt-2 text-xs text-slate-400">
+              Mercados de <span class="font-semibold">1º/2º tempo</span> sempre são mais sensíveis a variação
+              (menos minutos de jogo), então é importante combinar essa análise histórica com o que está acontecendo ao vivo
+              antes de decidir qualquer entrada.
+            </p>
+          `;
+        }
+
+        // Rodapé padrão
         html += `
-          <p class="mt-2 text-slate-300">
-            Essa leitura é baseada no histórico de resultados e gols da BRA.xlsx.
-            Para cartões e escanteios ainda é uma aproximação, então use como
-            <span class="font-semibold text-amber-200">filtro de estudo</span>, não como recomendação financeira direta.
+          <p class="mt-3 text-slate-300">
+            Toda essa leitura é para <span class="font-semibold text-amber-200">estudo e simulação</span>,
+            baseada no histórico da BRA.xlsx. Não é recomendação financeira, nem garantia de resultado.
           </p>
         `;
 
@@ -413,7 +603,7 @@
     }
 
     // =========================
-    // JOGOS AO VIVO
+    // JOGOS AO VIVO (só jogo realmente em andamento)
     // =========================
     async function loadLiveMatches() {
       liveError.classList.add("hidden");
@@ -424,7 +614,12 @@
         if (!res.ok) throw new Error("Erro ao acessar /live/bra");
         const data = await res.json();
 
-        const matches = data.matches || [];
+        const LIVE_STATUS_FRONT = ["1H", "HT", "2H", "ET", "P"];
+
+        const matches = (data.matches || []).filter(
+          m => m.status && LIVE_STATUS_FRONT.includes(m.status)
+        );
+
         liveList.innerHTML = "";
 
         if (!matches.length) {
@@ -460,7 +655,8 @@
             selectOptionByText(awaySelect, m.away_team);
             lastMatchesInput.value = 10;
             questionInput.value =
-              "Análise rápida de " + m.home_team + " x " + m.away_team + " ao vivo, considerando gols, escanteios e cartões.";
+              "Análise rápida de " + m.home_team + " x " + m.away_team +
+              " ao vivo, considerando gols, cartões e escanteios.";
             runAnalysis(m.home_team, m.away_team, 10, questionInput.value);
           });
 
