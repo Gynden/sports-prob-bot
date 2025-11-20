@@ -24,7 +24,7 @@ app = FastAPI(title="BRA Probabilities API")
 # CORS – depois você pode restringir para o domínio do seu front
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ex.: ["https://bot-sports-analyst2.onrender.com"]
+    allow_origins=["*"],  # ex.: ["https://seu-site.onrender.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,15 +50,14 @@ def get_db():
 # NORMALIZAÇÃO DE NOMES DE TIME
 # -----------------------------------------------------------------------------
 
-# Aqui entram apenas casos em que a API ao vivo traz um nome
-# DIFERENTE da planilha BRA.xlsx.
+# Aqui entram só casos onde a API-Football usa um nome diferente da BRA.xlsx.
 TEAM_SYNONYMS: Dict[str, str] = {
-    # Exemplo real citado: na base "Flamengo RJ", na API só "Flamengo"
+    # Exemplo real: na base "Flamengo RJ", na API só "Flamengo"
     "flamengo": "Flamengo RJ",
-    # Depois você pode ir adicionando outros aqui conforme encontrar:
+    # depois você pode ir completando:
     # "cuiaba": "Cuiabá EC",
     # "atletico mg": "Atlético Mineiro",
-    # ...
+    # etc.
 }
 
 
@@ -67,31 +66,32 @@ def normalize_team_name(name: str, db: Session) -> str:
     Converte o nome vindo do front/API para o nome que existe no banco/BRA.xlsx.
 
     Regra:
-    1) Primeiro tenta casar com os nomes que JÁ existem no banco (exato e variações).
-    2) Só se nada bater é que usa TEAM_SYNONYMS.
+    1) Tenta bater exato com o que existe na tabela Team.
+    2) Tenta começar/contain (resolve "Flamengo" x "Flamengo RJ").
+    3) Só se nada bater usa TEAM_SYNONYMS.
     """
     if not name:
         return name
 
     key = name.strip().lower()
 
-    # 1) Verifica igualdade exata no banco (ignora maiúsculas/minúsculas)
+    # 1) Igualdade exata
     teams = db.query(Team).all()
     for t in teams:
         if t.name.strip().lower() == key:
             return t.name
 
-    # 2) Começa com / contém – resolve "Flamengo" x "Flamengo RJ"
+    # 2) Começa com / contém
     for t in teams:
         tname = t.name.strip().lower()
         if tname.startswith(key) or key.startswith(tname):
             return t.name
 
-    # 3) Se ainda não achou nada, aplica sinônimos manuais
+    # 3) Sinônimos manuais
     if key in TEAM_SYNONYMS:
         return TEAM_SYNONYMS[key]
 
-    # 4) Se nada bater mesmo, devolve o original
+    # 4) Nada bateu
     return name
 
 
@@ -159,8 +159,8 @@ def map_fixture_to_simple(f: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "fixture_id": fixture.get("id"),
         "date": fixture.get("date"),
-        "status": status.get("short"),   # ex: '1H', 'HT', '2H'
-        "minute": status.get("elapsed"), # minuto de jogo
+        "status": status.get("short"),      # ex: '1H', 'HT', '2H', 'FT'
+        "minute": status.get("elapsed"),    # minuto de jogo
         "league": league.get("name"),
         "round": league.get("round"),
         "country": league.get("country"),
@@ -174,6 +174,7 @@ def map_fixture_to_simple(f: Dict[str, Any]) -> Dict[str, Any]:
 def fetch_live_bra_fixtures() -> Dict[str, Any]:
     """
     Busca todos os jogos AO VIVO do Brasileirão Série A.
+    (Não usado diretamente pelo front, mas deixei aqui caso queira.)
     """
     data = call_football_api(
         "/fixtures",
@@ -212,7 +213,7 @@ def fetch_fixture_by_id(fixture_id: int) -> Dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
-# AJUSTE DE PROBABILIDADE AO VIVO (opcional)
+# AJUSTE DE PROBABILIDADE AO VIVO (opcional para futuro)
 # -----------------------------------------------------------------------------
 
 def adjust_probabilities_with_live(
@@ -228,7 +229,6 @@ def adjust_probabilities_with_live(
         "away_win": 0.20
       }
     """
-
     home_p = float(hist_probs.get("home_win", 0.33))
     draw_p = float(hist_probs.get("draw", 0.33))
     away_p = float(hist_probs.get("away_win", 0.33))
@@ -238,31 +238,25 @@ def adjust_probabilities_with_live(
     away_g = live.get("away_goals") or 0
     diff = home_g - away_g
 
-    # quão avançado está o jogo (0 a 1)
-    time_factor = max(0.0, min(1.0, minute / 90.0))
+    time_factor = max(0.0, min(1.0, minute / 90.0))  # 0 a 1
 
-    # Ajuste básico pelo placar
     if diff > 0:
-        # casa na frente
         bonus = 0.25 * diff * time_factor
         home_p += bonus
         away_p -= bonus * 0.6
         draw_p -= bonus * 0.4
     elif diff < 0:
-        # fora na frente
         diff_abs = abs(diff)
         bonus = 0.25 * diff_abs * time_factor
         away_p += bonus
         home_p -= bonus * 0.6
         draw_p -= bonus * 0.4
     else:
-        # empate no placar
         if minute >= 60:
             draw_p += 0.10 * time_factor
             home_p -= 0.05 * time_factor
             away_p -= 0.05 * time_factor
 
-    # corrige valores negativos
     home_p = max(0.0, home_p)
     draw_p = max(0.0, draw_p)
     away_p = max(0.0, away_p)
@@ -310,9 +304,11 @@ class BraMatchRequest(BaseModel):
 def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     """
     Endpoint principal usado pelo front.
+
     - Normaliza nomes de times (resolve diferença API x BRA.xlsx)
     - Chama analyze_match
     - Padroniza a resposta:
+
       {
         "home_team": "...",
         "away_team": "...",
@@ -325,7 +321,7 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
       }
     """
 
-    # 1) Normaliza nomes (agora SEM quebrar o que já está no banco)
+    # 1) Normaliza nomes
     normalized_home = normalize_team_name(req.home_team, db)
     normalized_away = normalize_team_name(req.away_team, db)
 
@@ -335,13 +331,19 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Se o analyze_match não devolver dict, só repassa
     if not isinstance(raw, dict):
         return raw
 
-    # 3) Acha bloco de probabilidades
-    probs_raw = raw.get("probabilities") or raw.get("probs") or raw.get("prob") or {}
+    # 3) Acha bloco de probabilidades (flexível com nomes)
+    probs_raw = (
+        raw.get("probabilities")
+        or raw.get("probs")
+        or raw.get("prob")
+        or {}
+    )
+
     if not isinstance(probs_raw, dict) or not probs_raw:
+        # se não tiver bloco separado, usa o próprio raw como fonte
         probs_raw = raw
 
     home_win = _pick_first(
@@ -363,12 +365,6 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
         "p_away", "p_visitante",
     )
 
-    probabilities = {
-        "home_win": home_win,
-        "draw": draw,
-        "away_win": away_win,
-    }
-
     goals_avg = (
         raw.get("goals_avg")
         or raw.get("avg_goals")
@@ -379,7 +375,11 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     response: Dict[str, Any] = {
         "home_team": normalized_home,
         "away_team": normalized_away,
-        "probabilities": probabilities,
+        "probabilities": {
+            "home_win": home_win,
+            "draw": draw,
+            "away_win": away_win,
+        },
         "goals_avg": goals_avg,
     }
 
@@ -423,8 +423,9 @@ def admin_ingest_bra(db: Session = Depends(get_db)):
 @app.get("/live/bra")
 async def live_bra():
     """
-    Retorna os jogos ao vivo do Brasileirão Série A,
-    filtrando a partir de TODOS os jogos ao vivo da API-FOOTBALL.
+    Retorna os jogos ao vivo do Brasileirão Série A
+    a partir de TODOS os jogos ao vivo da API-FOOTBALL,
+    filtrando apenas os status que realmente indicam jogo em andamento.
     """
     if not FOOTBALL_API_KEY:
         raise HTTPException(
@@ -433,7 +434,7 @@ async def live_bra():
         )
 
     url = f"{FOOTBALL_API_BASE.rstrip('/')}/fixtures"
-    params = {"live": "all"}
+    params = {"live": "all"}  # todos os jogos ao vivo do mundo
     headers = {"x-apisports-key": FOOTBALL_API_KEY}
 
     async with httpx.AsyncClient(timeout=20) as client:
@@ -450,6 +451,9 @@ async def live_bra():
 
     jogos_bra_serie_a = []
 
+    # status que consideramos "jogo rolando"
+    LIVE_STATUS = {"1H", "HT", "2H", "ET", "P"}
+
     for item in all_live:
         league = item.get("league", {}) or {}
         fixture = item.get("fixture", {}) or {}
@@ -458,17 +462,22 @@ async def live_bra():
 
         country = (league.get("country") or "").lower()
         league_name = (league.get("name") or "").lower()
+        status_short = (fixture.get("status", {}) or {}).get("short") or ""
 
-        # filtra só Brasil + Série A
+        # só Brasil + Série A
         if country != "brazil":
             continue
         if "serie a" not in league_name:
             continue
 
+        # garante que está realmente em andamento
+        if status_short not in LIVE_STATUS:
+            continue
+
         jogos_bra_serie_a.append({
             "fixture_id": fixture.get("id"),
             "date": fixture.get("date"),
-            "status": fixture.get("status", {}).get("short"),
+            "status": status_short,
             "minute": fixture.get("status", {}).get("elapsed"),
             "league": league.get("name"),
             "round": league.get("round"),
