@@ -2,7 +2,9 @@ import os
 from typing import Dict, Any
 
 import requests
+import httpx
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,15 @@ from ingest_bra_excel import ingest_bra  # ingestão da BRA.xlsx
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="BRA Probabilities API")
+
+# CORS para permitir chamadas do seu front (Render)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # se quiser, depois troca por ["https://bot-sports-analyst2.onrender.com"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 FOOTBALL_API_BASE = os.getenv("FOOTBALL_API_BASE", "https://v3.football.api-sports.io")
 FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY")
@@ -340,9 +351,7 @@ async def live_bra():
         })
 
     return {
-        # quantos jogos ao vivo o mundo todo tem
         "raw_count": len(all_live),
-        # quantos a gente filtrou como Brasileirão Série A
         "count": len(jogos_bra_serie_a),
         "matches": jogos_bra_serie_a,
     }
