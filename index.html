@@ -5,22 +5,65 @@
   <title>Analista IA do Brasileirão</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Estilinhos extras para o efeito de fogo -->
+  <style>
+    @keyframes fireGlow {
+      0%   { transform: translateY(0px) scale(1);   opacity: 0.5; }
+      50%  { transform: translateY(-8px) scale(1.05); opacity: 0.9; }
+      100% { transform: translateY(0px) scale(1);   opacity: 0.5; }
+    }
+    .fire-bg {
+      background: radial-gradient(circle at 20% 0%,
+        rgba(248, 113, 113, 0.25),
+        transparent 55%)
+        ,
+        radial-gradient(circle at 80% 100%,
+        rgba(251, 191, 36, 0.2),
+        transparent 55%);
+      pointer-events: none;
+      animation: fireGlow 9s ease-in-out infinite;
+    }
+    .fire-pill {
+      background: radial-gradient(circle at 30% 0%, #f97316, #b91c1c);
+      box-shadow:
+        0 0 20px rgba(248, 113, 113, 0.6),
+        0 0 40px rgba(249, 115, 22, 0.5);
+    }
+    .fire-button {
+      background-image: linear-gradient(90deg, #ef4444, #f97316, #fb923c);
+      box-shadow:
+        0 0 16px rgba(248, 113, 113, 0.6),
+        0 0 32px rgba(249, 115, 22, 0.5);
+    }
+    .fire-button:hover {
+      filter: brightness(1.1);
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50">
+<body class="min-h-screen bg-slate-950 text-slate-50 relative overflow-hidden">
+
+  <!-- GLOW de fogo no fundo -->
+  <div class="fire-bg fixed inset-0 blur-3xl opacity-70"></div>
 
   <!-- TOPO -->
-  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+  <header class="relative border-b border-slate-800/70 bg-gradient-to-r from-slate-950/90 via-slate-950/80 to-slate-950/90 backdrop-blur">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full bg-violet-600/80 flex items-center justify-center shadow-lg shadow-violet-500/30">
-          <span class="text-xl">⚽</span>
+        <!-- Ícone bola pegando fogo -->
+        <div class="w-10 h-10 rounded-2xl fire-pill flex items-center justify-center text-2xl">
+          <span>⚽🔥</span>
         </div>
         <div>
-          <h1 class="text-sm md:text-base font-semibold tracking-tight">
-            ANALISTA IA DO BRASILEIRÃO
-            <span class="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40 uppercase">beta</span>
+          <h1 class="text-sm md:text-base font-semibold tracking-tight flex items-center gap-1">
+            <span>ANALISTA IA DO BRASILEIRÃO</span>
+            <span class="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-400/60 uppercase">
+              beta
+            </span>
           </h1>
-          <p class="text-xs text-slate-400">Histórico da BRA.xlsx + jogos ao vivo (API-FOOTBALL)</p>
+          <p class="text-xs text-slate-300">
+            Histórico da BRA.xlsx + jogos ao vivo (API-FOOTBALL)
+          </p>
         </div>
       </div>
 
@@ -28,7 +71,7 @@
       <div class="flex items-center gap-2 text-xs">
         <span class="text-slate-400">Status API:</span>
         <span id="api-status-pill"
-              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-slate-800 text-amber-300 border border-amber-500/40">
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-slate-900 text-amber-300 border border-amber-500/60">
           <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
           <span id="api-status-text">checando…</span>
         </span>
@@ -37,14 +80,16 @@
   </header>
 
   <!-- CONTEÚDO -->
-  <main class="max-w-6xl mx-auto px-4 py-6 grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)] gap-6">
+  <main class="relative max-w-6xl mx-auto px-4 py-6 grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)] gap-6">
 
     <!-- COLUNA ESQUERDA: CHAT / FORM -->
-    <section class="bg-slate-900/60 border border-slate-800 rounded-3xl p-4 md:p-6 flex flex-col gap-4 shadow-xl shadow-black/40">
+    <section class="bg-slate-950/80 border border-red-500/20 rounded-3xl p-4 md:p-6 flex flex-col gap-4 shadow-2xl shadow-black/70">
       <!-- Cabeçalho do “chat” -->
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-full bg-violet-500/70 flex items-center justify-center text-sm">IA</div>
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center text-xs font-semibold">
+            IA
+          </div>
           <div>
             <h2 class="text-sm font-semibold">Chat de Análise Esportiva</h2>
             <p class="text-[11px] text-slate-400">
@@ -54,14 +99,15 @@
         </div>
       </div>
 
-      <!-- Mensagem fixa da IA -->
-      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl px-4 py-3 text-xs text-slate-200">
+      <!-- Mensagem “fixa” da IA -->
+      <div class="bg-slate-900/80 border border-red-500/30 rounded-2xl px-4 py-3 text-xs text-slate-100">
         <p>
-          <span class="font-semibold text-violet-200">Fala, trader! 👋</span>
+          <span class="font-semibold text-amber-300">Fala, trader! 👋</span>
           <span class="ml-1">
-            Escolha o <span class="font-semibold">time da casa</span>, o <span class="font-semibold">time visitante</span>,
-            diga <span class="font-semibold">quantos jogos recentes</span> quer usar de histórico e
-            faça sua pergunta em aberto sobre o confronto.
+            Escolha o <span class="font-semibold text-amber-200">time da casa</span>,
+            o <span class="font-semibold text-amber-200">time visitante</span>,
+            diga <span class="font-semibold text-amber-200">quantos jogos recentes</span> quer usar de histórico
+            e faça sua <span class="font-semibold text-amber-200">pergunta em aberto</span> sobre o confronto.
           </span>
         </p>
         <p class="mt-2 text-[11px] text-slate-400">
@@ -69,82 +115,89 @@
         </p>
       </div>
 
-      <!-- Janela do chat -->
-      <div id="chat-area" class="flex-1 min-h-[180px] max-h-80 overflow-y-auto space-y-3 pr-1 text-xs">
-        <!-- mensagens via JS -->
+      <!-- “Janela” de chat (onde as respostas aparecem) -->
+      <div id="chat-area" class="flex-1 min-h-[200px] max-h-80 overflow-y-auto space-y-3 pr-1 text-xs">
+        <!-- As mensagens de resposta da IA serão adicionadas aqui via JS -->
       </div>
 
       <!-- FORMULÁRIO -->
-      <div class="mt-2 border-t border-slate-800 pt-4">
-        <form id="analysis-form" class="space-y-3">
-
-          <!-- Linha de times + últimos jogos -->
-          <div class="grid md:grid-cols-3 gap-3 items-end">
-            <!-- Time da casa -->
-            <div class="flex flex-col gap-1">
-              <label class="text-[11px] uppercase tracking-wide text-slate-400">Time da casa</label>
-              <select id="home-team" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70">
-                <option value="">Selecione…</option>
-              </select>
-            </div>
-
-            <!-- Time visitante -->
-            <div class="flex flex-col gap-1">
-              <label class="text-[11px] uppercase tracking-wide text-slate-400">Time visitante</label>
-              <select id="away-team" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70">
-                <option value="">Selecione…</option>
-              </select>
-            </div>
-
-            <!-- Últimos jogos -->
-            <div class="flex flex-col gap-1">
-              <label class="text-[11px] uppercase tracking-wide text-slate-400">Últimos jogos</label>
-              <input id="last-matches"
-                     type="number"
-                     min="3" max="50" value="10"
-                     class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70" />
-            </div>
-          </div>
-
-          <!-- Pergunta em aberto -->
+      <div class="mt-2 border-t border-slate-800/80 pt-4 space-y-3">
+        <!-- Linha de selects -->
+        <div class="grid md:grid-cols-3 gap-3">
+          <!-- Time da casa -->
           <div class="flex flex-col gap-1">
-            <label class="text-[11px] uppercase tracking-wide text-slate-400">Sua pergunta para a IA sobre esse jogo</label>
-            <textarea
-              id="user-question"
-              rows="3"
-              placeholder='Ex.: "No jogo de hoje vale mais over 2.5 gols, escanteios ou cartões?"'
-              class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70 resize-none"
-            ></textarea>
+            <label class="text-[11px] uppercase tracking-wide text-slate-400">Time da casa</label>
+            <select id="home-team"
+                    class="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-orange-500/70">
+              <option value="">Selecione…</option>
+            </select>
           </div>
 
-          <!-- Botão -->
-          <div class="flex justify-end">
-            <button type="submit"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-xs font-semibold shadow-lg shadow-violet-500/30 transition">
-              <span>Rodar análise</span>
-              <span class="text-base">➜</span>
-            </button>
+          <!-- Time visitante -->
+          <div class="flex flex-col gap-1">
+            <label class="text-[11px] uppercase tracking-wide text-slate-400">Time visitante</label>
+            <select id="away-team"
+                    class="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-orange-500/70">
+              <option value="">Selecione…</option>
+            </select>
           </div>
-        </form>
-        <p class="mt-2 text-[11px] text-slate-500">
-          Os times são carregados da base da planilha <span class="font-semibold text-slate-300">BRA.xlsx</span>.
+
+          <!-- Últimos jogos -->
+          <div class="flex flex-col gap-1">
+            <label class="text-[11px] uppercase tracking-wide text-slate-400">Últimos jogos</label>
+            <input id="last-matches"
+                   type="number"
+                   min="3" max="50" value="10"
+                   class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-orange-500/70" />
+          </div>
+        </div>
+
+        <!-- Pergunta livre -->
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] uppercase tracking-wide text-slate-400">
+            Sua pergunta para a IA sobre esse jogo
+          </label>
+          <textarea
+            id="user-question"
+            rows="2"
+            placeholder='Ex.: "No jogo de hoje vale mais over 2.5 gols, escanteios ou cartões?"'
+            class="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-orange-500/70 resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Botão -->
+        <div class="flex justify-end">
+          <button type="button" id="run-analysis-btn"
+                  class="fire-button inline-flex items-center gap-2 px-5 py-2 rounded-full text-xs font-semibold text-slate-50 transition">
+            <span>Rodar análise</span>
+            <span class="text-base">➜</span>
+          </button>
+        </div>
+
+        <p class="mt-1 text-[11px] text-slate-500">
+          Os times são carregados da base da planilha <span class="font-semibold text-slate-200">BRA.xlsx</span>.
         </p>
       </div>
     </section>
 
     <!-- COLUNA DIREITA: JOGOS AO VIVO + COMO USAR -->
-    <section class="flex flex-col gap-4">
+    <section class="relative flex flex-col gap-4">
       <!-- Jogos ao vivo -->
-      <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-4 md:p-5 shadow-xl shadow-black/40 flex flex-col gap-3">
+      <div class="bg-slate-950/80 border border-red-500/30 rounded-3xl p-4 md:p-5 shadow-2xl shadow-black/70 flex flex-col gap-3">
         <div class="flex items-center justify-between gap-3">
           <div class="flex flex-col gap-0.5">
-            <h2 class="text-sm font-semibold">Jogos ao vivo - Série A</h2>
+            <h2 class="text-sm font-semibold flex items-center gap-1">
+              <span>Jogos ao vivo - Série A</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-600/20 text-red-300 border border-red-500/50">
+                🔥 tempo real
+              </span>
+            </h2>
             <p class="text-[11px] text-slate-400">
-              Dados em tempo real via API-FOOTBALL. Clique em um jogo para puxar os times e gerar a análise.
+              Dados em tempo real via API-FOOTBALL. Clique em um jogo para gerar uma análise + sinal.
             </p>
           </div>
           <button id="btn-refresh-live"
-                  class="px-3 py-1.5 rounded-full text-[11px] border border-slate-700 text-slate-200 hover:bg-slate-800">
+                  class="px-3 py-1.5 rounded-full text-[11px] border border-slate-700/80 text-slate-100 hover:bg-slate-900/80">
             Atualizar
           </button>
         </div>
@@ -154,17 +207,17 @@
         </div>
 
         <div id="live-list" class="mt-1 space-y-2 text-xs max-h-60 overflow-y-auto pr-1">
-          <!-- jogos ao vivo aqui -->
+          <!-- jogos ao vivo aparecem aqui -->
         </div>
       </div>
 
       <!-- Como usar / aviso -->
-      <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-4 md:p-5 text-xs space-y-2">
+      <div class="bg-slate-950/80 border border-red-500/20 rounded-3xl p-4 md:p-5 text-xs space-y-2 shadow-xl shadow-black/70">
         <h3 class="text-sm font-semibold mb-1">Como usar essa tela</h3>
         <ul class="list-disc list-inside text-[11px] text-slate-300 space-y-1">
-          <li>Use o chat à esquerda para análises <span class="font-semibold">pré-jogo</span> usando o histórico da BRA.xlsx.</li>
+          <li>Use o chat à esquerda para análises <span class="font-semibold text-amber-200">pré-jogo</span> usando apenas o histórico da BRA.xlsx.</li>
           <li>Use os jogos ao vivo à direita para preencher os times automaticamente e rodar a análise em tempo real.</li>
-          <li>Tudo aqui é para <span class="font-semibold">estudo e simulação</span>. Não é recomendação financeira.</li>
+          <li>Tudo aqui é para <span class="font-semibold text-amber-200">estudo e simulação</span>. Não é recomendação financeira.</li>
         </ul>
       </div>
     </section>
@@ -175,19 +228,21 @@
     // =========================
     // CONFIG
     // =========================
-    const API_BASE = "https://sports-prob-api.onrender.com";
+    const API_BASE = "https://sports-prob-api.onrender.com"; // mantenha igual ao que você já usa, se for outro path
 
     let apiOnline = false;
 
     const apiStatusPill = document.getElementById("api-status-pill");
+    const apiStatusText = document.getElementById("api-status-text");
     const homeSelect = document.getElementById("home-team");
     const awaySelect = document.getElementById("away-team");
     const lastMatchesInput = document.getElementById("last-matches");
+    const questionInput = document.getElementById("user-question");
     const chatArea = document.getElementById("chat-area");
     const liveList = document.getElementById("live-list");
     const liveError = document.getElementById("live-error");
     const refreshLiveBtn = document.getElementById("btn-refresh-live");
-    const userQuestionInput = document.getElementById("user-question");
+    const runAnalysisBtn = document.getElementById("run-analysis-btn");
 
     // =========================
     // STATUS DA API
@@ -206,7 +261,7 @@
         console.error("Status API:", err);
         apiOnline = false;
         apiStatusPill.className =
-          "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-rose-900/50 text-rose-300 border border-rose-500/60";
+          "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-rose-900/60 text-rose-300 border border-rose-500/70";
         apiStatusPill.innerHTML =
           '<span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>' +
           '<span id="api-status-text">offline</span>';
@@ -253,8 +308,8 @@
       bubble.className =
         "max-w-[90%] rounded-2xl px-3 py-2 text-[11px] leading-relaxed " +
         (role === "ia"
-          ? "bg-slate-800 border border-slate-700 text-slate-100"
-          : "bg-violet-600 text-slate-50");
+          ? "bg-slate-900 border border-red-500/40 text-slate-100"
+          : "bg-gradient-to-r from-red-600 via-orange-500 to-amber-400 text-slate-50");
 
       bubble.innerHTML = html;
       wrapper.appendChild(bubble);
@@ -264,27 +319,26 @@
 
     function percent(value) {
       if (value === null || value === undefined) return "-";
-      const v = Number(value);
-      if (Number.isNaN(v)) return "-";
-      // se vier 55 em vez de 0.55
-      if (v > 1) return v.toFixed(1) + "%";
-      return (v * 100).toFixed(1) + "%";
+      return (value * 100).toFixed(1) + "%";
     }
 
     // =========================
-    // RODAR ANÁLISE (com pergunta)
+    // RODAR ANÁLISE
     // =========================
-    async function runAnalysis(home, away, lastMatches, question) {
+    async function runAnalysis(home, away, lastMatches, questionText) {
       if (!apiOnline) {
         addMessage("ia", "Não consigo acessar a API agora. Confere se o backend está online no Render. 😔");
         return;
       }
 
-      const userHtml = question
-        ? `<p><strong>${home}</strong> x <strong>${away}</strong></p><p class="mt-1">${question}</p>`
-        : `Analisa <strong>${home}</strong> x <strong>${away}</strong> usando os últimos <strong>${lastMatches}</strong> jogos.`;
+      const pergunta = questionText && questionText.trim()
+        ? questionText.trim()
+        : "Análise rápida desse confronto (gols, cartões e escanteios).";
 
-      addMessage("user", userHtml);
+      addMessage(
+        "user",
+        `🔥 <strong>${home}</strong> x <strong>${away}</strong><br/>Pergunta: <em>${pergunta}</em><br/><span class="text-slate-300">Usando os últimos <strong>${lastMatches}</strong> jogos.</span>`
+      );
 
       try {
         const res = await fetch(`${API_BASE}/probabilities/bra/match`, {
@@ -300,41 +354,22 @@
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           const msg = errData.detail || "Erro ao rodar análise.";
-          addMessage("ia", `Não consegui completar essa análise agora. Detalhe: <span class="text-amber-300">${msg}</span>`);
+          addMessage(
+            "ia",
+            `Não consegui completar essa análise agora. Detalhe: <span class="text-amber-300">${msg}</span>`
+          );
           return;
         }
 
         const data = await res.json();
-        console.log("RESPOSTA /probabilities/bra/match:", data);
+        const probs = data.probabilities || data.probs || {};
 
-        // tenta achar probabilities em vários formatos
-        let probs = data.probabilities || data.probs || data.prob || {};
+        const pHome = percent(probs.home_win ?? probs.home ?? null);
+        const pDraw = percent(probs.draw ?? probs.empate ?? null);
+        const pAway = percent(probs.away_win ?? probs.away ?? null);
 
-        if (!Object.keys(probs).length) {
-          probs = {
-            home_win: data.home_win ?? data.home ?? data.mandante,
-            draw: data.draw ?? data.empate,
-            away_win: data.away_win ?? data.away ?? data.visitante,
-          };
-        }
-
-        const pHome = percent(
-          probs.home_win ?? probs.home ?? probs.mandante
-        );
-        const pDraw = percent(
-          probs.draw ?? probs.empate
-        );
-        const pAway = percent(
-          probs.away_win ?? probs.away ?? probs.visitante
-        );
-
-        let html = `<p><strong>Resposta para ${home} x ${away}:</strong></p>`;
-
-        if (question) {
-          html += `<p class="mt-1 text-slate-300">Sobre a sua pergunta: <span class="italic">"${question}"</span></p>`;
-        }
-
-        html += `
+        let html = `
+          <p><strong>Resposta para ${home} x ${away}:</strong></p>
           <ul class="mt-1 list-disc list-inside space-y-0.5">
             <li>Vitória do mandante: <span class="font-semibold text-emerald-300">${pHome}</span></li>
             <li>Empate: <span class="font-semibold text-sky-300">${pDraw}</span></li>
@@ -342,24 +377,29 @@
           </ul>
         `;
 
-        const g = data.goals_avg || (data.stats && data.stats.goals_avg);
-        if (g !== undefined && g !== null) {
-          const gStr = g && g.toFixed ? g.toFixed(2) : g;
-          html += `<p class="mt-1">Média de gols recente do confronto: <span class="font-semibold">${gStr}</span>.</p>`;
+        if (data.goals_avg || (data.stats && data.stats.goals_avg)) {
+          const g = data.goals_avg || data.stats.goals_avg;
+          const value = g && g.toFixed ? g.toFixed(2) : g;
+          if (value) {
+            html += `<p class="mt-1">Média de gols recente do confronto: <span class="font-semibold">${value}</span>.</p>`;
+          }
         }
 
         html += `
           <p class="mt-2 text-slate-300">
             Essa leitura é baseada no histórico de resultados e gols da BRA.xlsx.
-            Para cartões e escanteios ainda é uma aproximação, então use como <span class="font-semibold">filtro de estudo</span>,
-            não como recomendação financeira direta.
+            Para cartões e escanteios ainda é uma aproximação, então use como
+            <span class="font-semibold text-amber-200">filtro de estudo</span>, não como recomendação financeira direta.
           </p>
         `;
 
         addMessage("ia", html);
       } catch (err) {
         console.error("Erro na análise:", err);
-        addMessage("ia", "Tive um erro inesperado ao rodar a análise. Veja o console do navegador para mais detalhes.");
+        addMessage(
+          "ia",
+          "Tive um erro inesperado ao rodar a análise. Veja o console do navegador para mais detalhes."
+        );
       }
     }
 
@@ -387,19 +427,21 @@
           const card = document.createElement("button");
           card.type = "button";
           card.className =
-            "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-slate-700 text-left transition";
+            "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-slate-950/90 hover:bg-slate-900/90 border border-red-500/40 text-left transition";
 
           const left = document.createElement("div");
           left.className = "flex flex-col";
           left.innerHTML = `
             <span class="text-[11px] text-slate-400">${m.league || "Brasileirão Série A"}</span>
             <span class="text-xs font-semibold">${m.home_team} <span class="text-slate-400">x</span> ${m.away_team}</span>
-            <span class="text-[11px] text-slate-400">${m.minute ? m.minute + "'" : ""} - Placar: ${m.home_goals ?? 0} x ${m.away_goals ?? 0}</span>
+            <span class="text-[11px] text-slate-400">
+              ${m.minute ? m.minute + "'" : ""} - Placar: ${m.home_goals ?? 0} x ${m.away_goals ?? 0}
+            </span>
           `;
 
           const right = document.createElement("div");
-          right.className = "flex flex-col items-end text-[11px] text-slate-300";
-          right.innerHTML = `<span class="text-slate-400 mb-0.5">Clique para analisar</span>`;
+          right.className = "flex flex-col items-end text-[11px] text-amber-200";
+          right.innerHTML = `<span class="mb-0.5">🔥 Clique para analisar</span>`;
 
           card.appendChild(left);
           card.appendChild(right);
@@ -408,8 +450,9 @@
             selectOptionByText(homeSelect, m.home_team);
             selectOptionByText(awaySelect, m.away_team);
             lastMatchesInput.value = 10;
-            userQuestionInput.value = `Análise rápida de ${m.home_team} x ${m.away_team} ao vivo, considerando gols, escanteios e cartões.`;
-            runAnalysis(m.home_team, m.away_team, 10, userQuestionInput.value);
+            questionInput.value =
+              "Análise rápida de " + m.home_team + " x " + m.away_team + " ao vivo, considerando gols, escanteios e cartões.";
+            runAnalysis(m.home_team, m.away_team, 10, questionInput.value);
           });
 
           liveList.appendChild(card);
@@ -432,31 +475,29 @@
     // =========================
     // EVENTOS
     // =========================
-    document.getElementById("analysis-form").addEventListener("submit", (e) => {
-      e.preventDefault();
+    runAnalysisBtn.addEventListener("click", () => {
       const home = homeSelect.value;
       const away = awaySelect.value;
       const lastMatches = lastMatchesInput.value || 10;
-      const question = userQuestionInput.value.trim();
+      const questionText = questionInput.value;
 
       if (!home || !away) {
-        addMessage("ia", "Escolha o <strong>time da casa</strong> e o <strong>time visitante</strong> antes de rodar a análise. 😉");
+        addMessage(
+          "ia",
+          "Escolha o <strong>time da casa</strong> e o <strong>time visitante</strong> antes de rodar a análise. 😉"
+        );
         return;
       }
 
       if (home === away) {
-        addMessage("ia", "Os times precisam ser diferentes (não vale analisar o time contra ele mesmo 😅).");
+        addMessage(
+          "ia",
+          "Os times precisam ser diferentes (não vale analisar o time contra ele mesmo 😅)."
+        );
         return;
       }
 
-      if (!question) {
-        addMessage("ia", "Manda sua pergunta em aberto sobre o jogo antes de rodar a análise. 😉");
-        userQuestionInput.focus();
-        return;
-      }
-
-      runAnalysis(home, away, lastMatches, question);
-      userQuestionInput.value = "";
+      runAnalysis(home, away, lastMatches, questionText);
     });
 
     refreshLiveBtn.addEventListener("click", loadLiveMatches);
