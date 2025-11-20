@@ -48,55 +48,57 @@
           <div>
             <h2 class="text-sm font-semibold">Chat de Análise Esportiva</h2>
             <p class="text-[11px] text-slate-400">
-              Faça perguntas via formulário e veja a resposta como se fosse um chat.
+              Pergunte em aberto sobre um jogo (gols, cartões, escanteios, etc.) e veja a resposta como se fosse um chat.
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Mensagem “fixa” da IA -->
+      <!-- Mensagem fixa da IA -->
       <div class="bg-slate-800/80 border border-slate-700 rounded-2xl px-4 py-3 text-xs text-slate-200">
         <p>
           <span class="font-semibold text-violet-200">Fala, trader! 👋</span>
           <span class="ml-1">
-            Me diga <span class="font-semibold">time da casa</span>, <span class="font-semibold">time visitante</span> e
-            <span class="font-semibold"> quantos jogos recentes</span> você quer que eu analise, que eu devolvo as probabilidades
-            e uma visão de valor.
+            Escolha o <span class="font-semibold">time da casa</span>, o <span class="font-semibold">time visitante</span>,
+            diga <span class="font-semibold">quantos jogos recentes</span> quer usar de histórico e
+            faça sua pergunta em aberto sobre o confronto.
           </span>
         </p>
         <p class="mt-2 text-[11px] text-slate-400">
-          Dica: use também os jogos ao vivo na direita pra puxar análises em tempo real.
+          Exemplo: <span class="italic">"No jogo Flamengo x Palmeiras de hoje, vale buscar over 2.5 gols ou linha de cartões?"</span>
         </p>
       </div>
 
-      <!-- “Janela” de chat (onde as respostas aparecem) -->
+      <!-- Janela do chat -->
       <div id="chat-area" class="flex-1 min-h-[180px] max-h-80 overflow-y-auto space-y-3 pr-1 text-xs">
-        <!-- As mensagens de resposta da IA serão adicionadas aqui via JS -->
+        <!-- mensagens via JS -->
       </div>
 
       <!-- FORMULÁRIO -->
       <div class="mt-2 border-t border-slate-800 pt-4">
-        <form id="analysis-form" class="grid md:grid-cols-3 gap-3 items-end">
-          <!-- Time da casa -->
-          <div class="flex flex-col gap-1">
-            <label class="text-[11px] uppercase tracking-wide text-slate-400">Time da casa</label>
-            <select id="home-team" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70">
-              <option value="">Selecione…</option>
-            </select>
-          </div>
+        <form id="analysis-form" class="space-y-3">
 
-          <!-- Time visitante -->
-          <div class="flex flex-col gap-1">
-            <label class="text-[11px] uppercase tracking-wide text-slate-400">Time visitante</label>
-            <select id="away-team" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70">
-              <option value="">Selecione…</option>
-            </select>
-          </div>
+          <!-- Linha de times + últimos jogos -->
+          <div class="grid md:grid-cols-3 gap-3 items-end">
+            <!-- Time da casa -->
+            <div class="flex flex-col gap-1">
+              <label class="text-[11px] uppercase tracking-wide text-slate-400">Time da casa</label>
+              <select id="home-team" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70">
+                <option value="">Selecione…</option>
+              </select>
+            </div>
 
-          <!-- Últimos jogos -->
-          <div class="flex flex-col gap-1">
-            <label class="text-[11px] uppercase tracking-wide text-slate-400">Últimos jogos</label>
-            <div class="flex items-center gap-2">
+            <!-- Time visitante -->
+            <div class="flex flex-col gap-1">
+              <label class="text-[11px] uppercase tracking-wide text-slate-400">Time visitante</label>
+              <select id="away-team" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70">
+                <option value="">Selecione…</option>
+              </select>
+            </div>
+
+            <!-- Últimos jogos -->
+            <div class="flex flex-col gap-1">
+              <label class="text-[11px] uppercase tracking-wide text-slate-400">Últimos jogos</label>
               <input id="last-matches"
                      type="number"
                      min="3" max="50" value="10"
@@ -104,8 +106,19 @@
             </div>
           </div>
 
+          <!-- Pergunta em aberto -->
+          <div class="flex flex-col gap-1">
+            <label class="text-[11px] uppercase tracking-wide text-slate-400">Sua pergunta para a IA sobre esse jogo</label>
+            <textarea
+              id="user-question"
+              rows="3"
+              placeholder='Ex.: "No jogo de hoje vale mais over 2.5 gols, escanteios ou cartões?"'
+              class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-500/70 resize-none"
+            ></textarea>
+          </div>
+
           <!-- Botão -->
-          <div class="md:col-span-3 flex justify-end">
+          <div class="flex justify-end">
             <button type="submit"
                     class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-xs font-semibold shadow-lg shadow-violet-500/30 transition">
               <span>Rodar análise</span>
@@ -127,7 +140,7 @@
           <div class="flex flex-col gap-0.5">
             <h2 class="text-sm font-semibold">Jogos ao vivo - Série A</h2>
             <p class="text-[11px] text-slate-400">
-              Dados em tempo real via API-FOOTBALL. Clique em um jogo para gerar uma análise + sinal.
+              Dados em tempo real via API-FOOTBALL. Clique em um jogo para puxar os times e gerar a análise.
             </p>
           </div>
           <button id="btn-refresh-live"
@@ -141,7 +154,7 @@
         </div>
 
         <div id="live-list" class="mt-1 space-y-2 text-xs max-h-60 overflow-y-auto pr-1">
-          <!-- jogos ao vivo aparecem aqui -->
+          <!-- jogos ao vivo aqui -->
         </div>
       </div>
 
@@ -149,8 +162,8 @@
       <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-4 md:p-5 text-xs space-y-2">
         <h3 class="text-sm font-semibold mb-1">Como usar essa tela</h3>
         <ul class="list-disc list-inside text-[11px] text-slate-300 space-y-1">
-          <li>Use o formulário à esquerda para análises <span class="font-semibold">pré-jogo</span> usando apenas o histórico da BRA.xlsx.</li>
-          <li>Use os jogos ao vivo à direita para análises com <span class="font-semibold">probabilidades ajustadas</span> + sinal sugerido pelo robô.</li>
+          <li>Use o chat à esquerda para análises <span class="font-semibold">pré-jogo</span> usando o histórico da BRA.xlsx.</li>
+          <li>Use os jogos ao vivo à direita para preencher os times automaticamente e rodar a análise em tempo real.</li>
           <li>Tudo aqui é para <span class="font-semibold">estudo e simulação</span>. Não é recomendação financeira.</li>
         </ul>
       </div>
@@ -162,7 +175,8 @@
     // =========================
     // CONFIG
     // =========================
-    const API_BASE = "https://sports-prob-api.onrender.com/analisar";
+    // CORRETO: sem /analisar no final
+    const API_BASE = "https://sports-prob-api.onrender.com";
 
     let apiOnline = false;
 
@@ -175,6 +189,7 @@
     const liveList = document.getElementById("live-list");
     const liveError = document.getElementById("live-error");
     const refreshLiveBtn = document.getElementById("btn-refresh-live");
+    const userQuestionInput = document.getElementById("user-question");
 
     // =========================
     // STATUS DA API
@@ -184,7 +199,6 @@
         const res = await fetch(`${API_BASE}/teams`);
         if (!res.ok) throw new Error("Erro ao acessar /teams");
         apiOnline = true;
-        apiStatusText.textContent = "online";
         apiStatusPill.className =
           "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-emerald-600/20 text-emerald-300 border border-emerald-500/60";
         apiStatusPill.innerHTML =
@@ -193,7 +207,6 @@
       } catch (err) {
         console.error("Status API:", err);
         apiOnline = false;
-        apiStatusText.textContent = "offline";
         apiStatusPill.className =
           "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-rose-900/50 text-rose-300 border border-rose-500/60";
         apiStatusPill.innerHTML =
@@ -211,7 +224,6 @@
         if (!res.ok) throw new Error("Erro ao carregar /teams");
         const data = await res.json();
 
-        // Limpa
         homeSelect.innerHTML = '<option value="">Selecione…</option>';
         awaySelect.innerHTML = '<option value="">Selecione…</option>';
 
@@ -258,15 +270,19 @@
     }
 
     // =========================
-    // RODAR ANÁLISE
+    // RODAR ANÁLISE (com pergunta)
     // =========================
-    async function runAnalysis(home, away, lastMatches) {
+    async function runAnalysis(home, away, lastMatches, question) {
       if (!apiOnline) {
         addMessage("ia", "Não consigo acessar a API agora. Confere se o backend está online no Render. 😔");
         return;
       }
 
-      addMessage("user", `Analisa <strong>${home}</strong> x <strong>${away}</strong> usando os últimos <strong>${lastMatches}</strong> jogos.`);
+      const userHtml = question
+        ? `<p><strong>${home}</strong> x <strong>${away}</strong></p><p class="mt-1">${question}</p>`
+        : `Analisa <strong>${home}</strong> x <strong>${away}</strong> usando os últimos <strong>${lastMatches}</strong> jogos.`;
+
+      addMessage("user", userHtml);
 
       try {
         const res = await fetch(`${API_BASE}/probabilities/bra/match`, {
@@ -293,25 +309,31 @@
         const pDraw = percent(probs.draw ?? probs.empate ?? null);
         const pAway = percent(probs.away_win ?? probs.away ?? null);
 
-        let html = `
-          <p><strong>Resumo da análise para ${home} x ${away}:</strong></p>
+        let html = `<p><strong>Resposta para ${home} x ${away}:</strong></p>`;
+
+        if (question) {
+          html += `<p class="mt-1 text-slate-300">Sobre a sua pergunta: <span class="italic">"${question}"</span></p>`;
+        }
+
+        html += `
           <ul class="mt-1 list-disc list-inside space-y-0.5">
-            <li>Probabilidade de vitória do mandante: <span class="font-semibold text-emerald-300">${pHome}</span></li>
-            <li>Probabilidade de empate: <span class="font-semibold text-sky-300">${pDraw}</span></li>
-            <li>Probabilidade de vitória do visitante: <span class="font-semibold text-rose-300">${pAway}</span></li>
+            <li>Vitória do mandante: <span class="font-semibold text-emerald-300">${pHome}</span></li>
+            <li>Empate: <span class="font-semibold text-sky-300">${pDraw}</span></li>
+            <li>Vitória do visitante: <span class="font-semibold text-rose-300">${pAway}</span></li>
           </ul>
         `;
 
         if (data.goals_avg || (data.stats && data.stats.goals_avg)) {
           const g = data.goals_avg || data.stats.goals_avg;
-          html += `<p class="mt-1">Média de gols recente do confronto: <span class="font-semibold">${g.toFixed ? g.toFixed(2) : g}</span>.</p>`;
+          const gStr = g && g.toFixed ? g.toFixed(2) : g;
+          html += `<p class="mt-1">Média de gols recente do confronto: <span class="font-semibold">${gStr}</span>.</p>`;
         }
 
         html += `
           <p class="mt-2 text-slate-300">
-            Lembrando: análise baseada apenas em histórico da BRA.xlsx (gols e resultados).
-            Para <span class="font-semibold">cartões e escanteios</span> ainda não tenho base nesta versão,
-            então considere isso mais como um <span class="font-semibold">robô de estudo</span> do que um sinal financeiro.
+            Essa leitura é baseada no histórico de resultados e gols da BRA.xlsx.
+            Para cartões e escanteios ainda é uma aproximação, então use como <span class="font-semibold">filtro de estudo</span>,
+            não como recomendação financeira direta.
           </p>
         `;
 
@@ -358,19 +380,17 @@
 
           const right = document.createElement("div");
           right.className = "flex flex-col items-end text-[11px] text-slate-300";
-          right.innerHTML = `
-            <span class="text-slate-400 mb-0.5">Clique para analisar</span>
-          `;
+          right.innerHTML = `<span class="text-slate-400 mb-0.5">Clique para analisar</span>`;
 
           card.appendChild(left);
           card.appendChild(right);
 
           card.addEventListener("click", () => {
-            // Preenche o formulário com esse jogo
             selectOptionByText(homeSelect, m.home_team);
             selectOptionByText(awaySelect, m.away_team);
             lastMatchesInput.value = 10;
-            runAnalysis(m.home_team, m.away_team, 10);
+            userQuestionInput.value = `Análise rápida de ${m.home_team} x ${m.away_team} ao vivo, considerando gols, escanteios e cartões.`;
+            runAnalysis(m.home_team, m.away_team, 10, userQuestionInput.value);
           });
 
           liveList.appendChild(card);
@@ -398,6 +418,7 @@
       const home = homeSelect.value;
       const away = awaySelect.value;
       const lastMatches = lastMatchesInput.value || 10;
+      const question = userQuestionInput.value.trim();
 
       if (!home || !away) {
         addMessage("ia", "Escolha o <strong>time da casa</strong> e o <strong>time visitante</strong> antes de rodar a análise. 😉");
@@ -409,7 +430,14 @@
         return;
       }
 
-      runAnalysis(home, away, lastMatches);
+      if (!question) {
+        addMessage("ia", "Manda sua pergunta em aberto sobre o jogo antes de rodar a análise. 😉");
+        userQuestionInput.focus();
+        return;
+      }
+
+      runAnalysis(home, away, lastMatches, question);
+      userQuestionInput.value = "";
     });
 
     refreshLiveBtn.addEventListener("click", loadLiveMatches);
