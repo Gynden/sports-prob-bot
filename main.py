@@ -50,48 +50,48 @@ def get_db():
 # NORMALIZAÇÃO DE NOMES DE TIME
 # -----------------------------------------------------------------------------
 
-# Mapeamento de apelidos -> nome da planilha BRA.xlsx
-# Você pode ir completando conforme for encontrando diferenças.
+# Aqui entram apenas casos em que a API ao vivo traz um nome
+# DIFERENTE da planilha BRA.xlsx.
 TEAM_SYNONYMS: Dict[str, str] = {
+    # Exemplo real citado: na base "Flamengo RJ", na API só "Flamengo"
     "flamengo": "Flamengo RJ",
-    "fluminense": "Fluminense RJ",
-    "botafogo": "Botafogo RJ",
-    "vasco": "Vasco da Gama",
-    # exemplo de outros possíveis:
+    # Depois você pode ir adicionando outros aqui conforme encontrar:
+    # "cuiaba": "Cuiabá EC",
     # "atletico mg": "Atlético Mineiro",
-    # "atletico-mg": "Atlético Mineiro",
-    # "atletico pr": "Athletico Paranaense",
-    # "athletico pr": "Athletico Paranaense",
+    # ...
 }
 
 
 def normalize_team_name(name: str, db: Session) -> str:
     """
-    Converte o nome vindo do front/API (ex.: 'Flamengo')
-    para o nome que existe no banco/BRA.xlsx (ex.: 'Flamengo RJ').
+    Converte o nome vindo do front/API para o nome que existe no banco/BRA.xlsx.
+
+    Regra:
+    1) Primeiro tenta casar com os nomes que JÁ existem no banco (exato e variações).
+    2) Só se nada bater é que usa TEAM_SYNONYMS.
     """
     if not name:
         return name
 
     key = name.strip().lower()
 
-    # 1) Apelidos manuais
-    if key in TEAM_SYNONYMS:
-        return TEAM_SYNONYMS[key]
-
-    # 2) Verifica igualdade exata (ignorando maiúsculas/minúsculas)
+    # 1) Verifica igualdade exata no banco (ignora maiúsculas/minúsculas)
     teams = db.query(Team).all()
     for t in teams:
         if t.name.strip().lower() == key:
             return t.name
 
-    # 3) Começa com / contém – resolve "Flamengo" x "Flamengo RJ"
+    # 2) Começa com / contém – resolve "Flamengo" x "Flamengo RJ"
     for t in teams:
         tname = t.name.strip().lower()
         if tname.startswith(key) or key.startswith(tname):
             return t.name
 
-    # Se nada bateu, devolve o original mesmo
+    # 3) Se ainda não achou nada, aplica sinônimos manuais
+    if key in TEAM_SYNONYMS:
+        return TEAM_SYNONYMS[key]
+
+    # 4) Se nada bater mesmo, devolve o original
     return name
 
 
@@ -212,7 +212,7 @@ def fetch_fixture_by_id(fixture_id: int) -> Dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
-# HELPERS DE ANÁLISE AO VIVO (se quiser usar depois)
+# AJUSTE DE PROBABILIDADE AO VIVO (opcional)
 # -----------------------------------------------------------------------------
 
 def adjust_probabilities_with_live(
@@ -280,7 +280,7 @@ def adjust_probabilities_with_live(
 
 
 # -----------------------------------------------------------------------------
-# ENDPOINTS BÁSICOS (histórico)
+# ENDPOINTS BÁSICOS
 # -----------------------------------------------------------------------------
 
 @app.get("/")
@@ -310,9 +310,9 @@ class BraMatchRequest(BaseModel):
 def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     """
     Endpoint principal usado pelo front.
-    - Normaliza nomes de times (Flamengo -> Flamengo RJ, etc.)
+    - Normaliza nomes de times (resolve diferença API x BRA.xlsx)
     - Chama analyze_match
-    - Padroniza a resposta em:
+    - Padroniza a resposta:
       {
         "home_team": "...",
         "away_team": "...",
@@ -325,7 +325,7 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
       }
     """
 
-    # 1) Normaliza nomes
+    # 1) Normaliza nomes (agora SEM quebrar o que já está no banco)
     normalized_home = normalize_team_name(req.home_team, db)
     normalized_away = normalize_team_name(req.away_team, db)
 
@@ -333,20 +333,17 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     try:
         raw = analyze_match(db, normalized_home, normalized_away, req.last_matches)
     except ValueError as e:
-        # Cai aqui se um dos times realmente não existir na base
         raise HTTPException(status_code=404, detail=str(e))
 
     # Se o analyze_match não devolver dict, só repassa
     if not isinstance(raw, dict):
         return raw
 
-    # 3) Tenta localizar bloco de probabilidades
+    # 3) Acha bloco de probabilidades
     probs_raw = raw.get("probabilities") or raw.get("probs") or raw.get("prob") or {}
     if not isinstance(probs_raw, dict) or not probs_raw:
-        # Se não tiver bloco separado, usa o próprio raw como fonte
         probs_raw = raw
 
-    # 4) Mapeia vários nomes possíveis -> home_win, draw, away_win
     home_win = _pick_first(
         probs_raw,
         "home_win", "home", "mandante",
@@ -372,7 +369,6 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
         "away_win": away_win,
     }
 
-    # 5) Média de gols com nomes alternativos
     goals_avg = (
         raw.get("goals_avg")
         or raw.get("avg_goals")
@@ -387,7 +383,6 @@ def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
         "goals_avg": goals_avg,
     }
 
-    # Mantém stats se existir
     if "stats" in raw:
         response["stats"] = raw["stats"]
 
@@ -438,12 +433,8 @@ async def live_bra():
         )
 
     url = f"{FOOTBALL_API_BASE.rstrip('/')}/fixtures"
-    params = {
-        "live": "all",  # todos os jogos ao vivo do mundo
-    }
-    headers = {
-        "x-apisports-key": FOOTBALL_API_KEY,
-    }
+    params = {"live": "all"}
+    headers = {"x-apisports-key": FOOTBALL_API_KEY}
 
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.get(url, params=params, headers=headers)
