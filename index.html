@@ -175,13 +175,11 @@
     // =========================
     // CONFIG
     // =========================
-    // CORRETO: sem /analisar no final
     const API_BASE = "https://sports-prob-api.onrender.com";
 
     let apiOnline = false;
 
     const apiStatusPill = document.getElementById("api-status-pill");
-    const apiStatusText = document.getElementById("api-status-text");
     const homeSelect = document.getElementById("home-team");
     const awaySelect = document.getElementById("away-team");
     const lastMatchesInput = document.getElementById("last-matches");
@@ -266,7 +264,11 @@
 
     function percent(value) {
       if (value === null || value === undefined) return "-";
-      return (value * 100).toFixed(1) + "%";
+      const v = Number(value);
+      if (Number.isNaN(v)) return "-";
+      // se vier 55 em vez de 0.55
+      if (v > 1) return v.toFixed(1) + "%";
+      return (v * 100).toFixed(1) + "%";
     }
 
     // =========================
@@ -303,11 +305,28 @@
         }
 
         const data = await res.json();
-        const probs = data.probabilities || data.probs || {};
+        console.log("RESPOSTA /probabilities/bra/match:", data);
 
-        const pHome = percent(probs.home_win ?? probs.home ?? null);
-        const pDraw = percent(probs.draw ?? probs.empate ?? null);
-        const pAway = percent(probs.away_win ?? probs.away ?? null);
+        // tenta achar probabilities em vários formatos
+        let probs = data.probabilities || data.probs || data.prob || {};
+
+        if (!Object.keys(probs).length) {
+          probs = {
+            home_win: data.home_win ?? data.home ?? data.mandante,
+            draw: data.draw ?? data.empate,
+            away_win: data.away_win ?? data.away ?? data.visitante,
+          };
+        }
+
+        const pHome = percent(
+          probs.home_win ?? probs.home ?? probs.mandante
+        );
+        const pDraw = percent(
+          probs.draw ?? probs.empate
+        );
+        const pAway = percent(
+          probs.away_win ?? probs.away ?? probs.visitante
+        );
 
         let html = `<p><strong>Resposta para ${home} x ${away}:</strong></p>`;
 
@@ -323,8 +342,8 @@
           </ul>
         `;
 
-        if (data.goals_avg || (data.stats && data.stats.goals_avg)) {
-          const g = data.goals_avg || data.stats.goals_avg;
+        const g = data.goals_avg || (data.stats && data.stats.goals_avg);
+        if (g !== undefined && g !== null) {
           const gStr = g && g.toFixed ? g.toFixed(2) : g;
           html += `<p class="mt-1">Média de gols recente do confronto: <span class="font-semibold">${gStr}</span>.</p>`;
         }
