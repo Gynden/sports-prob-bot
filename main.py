@@ -21,7 +21,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="BRA Probabilities API")
 
-# CORS para o front (pode depois restringir para o domínio do seu site)
+# CORS – depois você pode restringir para o domínio do seu front
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # ex.: ["https://bot-sports-analyst2.onrender.com"]
@@ -44,6 +44,65 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# -----------------------------------------------------------------------------
+# NORMALIZAÇÃO DE NOMES DE TIME
+# -----------------------------------------------------------------------------
+
+# Mapeamento de apelidos -> nome da planilha BRA.xlsx
+# Você pode ir completando conforme for encontrando diferenças.
+TEAM_SYNONYMS: Dict[str, str] = {
+    "flamengo": "Flamengo RJ",
+    "fluminense": "Fluminense RJ",
+    "botafogo": "Botafogo RJ",
+    "vasco": "Vasco da Gama",
+    # exemplo de outros possíveis:
+    # "atletico mg": "Atlético Mineiro",
+    # "atletico-mg": "Atlético Mineiro",
+    # "atletico pr": "Athletico Paranaense",
+    # "athletico pr": "Athletico Paranaense",
+}
+
+
+def normalize_team_name(name: str, db: Session) -> str:
+    """
+    Converte o nome vindo do front/API (ex.: 'Flamengo')
+    para o nome que existe no banco/BRA.xlsx (ex.: 'Flamengo RJ').
+    """
+    if not name:
+        return name
+
+    key = name.strip().lower()
+
+    # 1) Apelidos manuais
+    if key in TEAM_SYNONYMS:
+        return TEAM_SYNONYMS[key]
+
+    # 2) Verifica igualdade exata (ignorando maiúsculas/minúsculas)
+    teams = db.query(Team).all()
+    for t in teams:
+        if t.name.strip().lower() == key:
+            return t.name
+
+    # 3) Começa com / contém – resolve "Flamengo" x "Flamengo RJ"
+    for t in teams:
+        tname = t.name.strip().lower()
+        if tname.startswith(key) or key.startswith(tname):
+            return t.name
+
+    # Se nada bateu, devolve o original mesmo
+    return name
+
+
+def _pick_first(d: dict, *keys):
+    """
+    Helper para achar a primeira chave existente e não-nula dentro de um dict.
+    """
+    for k in keys:
+        if k in d and d[k] is not None:
+            return d[k]
+    return None
 
 
 # -----------------------------------------------------------------------------
@@ -153,7 +212,7 @@ def fetch_fixture_by_id(fixture_id: int) -> Dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
-# HELPERS DE ANÁLISE AO VIVO
+# HELPERS DE ANÁLISE AO VIVO (se quiser usar depois)
 # -----------------------------------------------------------------------------
 
 def adjust_probabilities_with_live(
@@ -250,57 +309,85 @@ class BraMatchRequest(BaseModel):
 @app.post("/probabilities/bra/match")
 def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
     """
-    Normaliza a resposta do analyze_match para um formato fixo:
-    {
-      "home_team": "...",
-      "away_team": "...",
-      "probabilities": {
-        "home_win": ...,
-        "draw": ...,
-        "away_win": ...
-      },
-      "goals_avg": ...
-    }
+    Endpoint principal usado pelo front.
+    - Normaliza nomes de times (Flamengo -> Flamengo RJ, etc.)
+    - Chama analyze_match
+    - Padroniza a resposta em:
+      {
+        "home_team": "...",
+        "away_team": "...",
+        "probabilities": {
+          "home_win": ...,
+          "draw": ...,
+          "away_win": ...
+        },
+        "goals_avg": ...
+      }
     """
+
+    # 1) Normaliza nomes
+    normalized_home = normalize_team_name(req.home_team, db)
+    normalized_away = normalize_team_name(req.away_team, db)
+
+    # 2) Roda análise
     try:
-        raw = analyze_match(db, req.home_team, req.away_team, req.last_matches)
+        raw = analyze_match(db, normalized_home, normalized_away, req.last_matches)
     except ValueError as e:
+        # Cai aqui se um dos times realmente não existir na base
         raise HTTPException(status_code=404, detail=str(e))
 
+    # Se o analyze_match não devolver dict, só repassa
     if not isinstance(raw, dict):
-        # Se sua função retornar outra coisa, simplesmente devolvemos assim
         return raw
 
-    # Tenta pegar já no formato esperado
-    probabilities = raw.get("probabilities") or raw.get("probs") or {}
+    # 3) Tenta localizar bloco de probabilidades
+    probs_raw = raw.get("probabilities") or raw.get("probs") or raw.get("prob") or {}
+    if not isinstance(probs_raw, dict) or not probs_raw:
+        # Se não tiver bloco separado, usa o próprio raw como fonte
+        probs_raw = raw
 
-    # Se ainda estiver vazio, tenta mapear de chaves alternativas
-    if not probabilities:
-        probabilities = {
-            "home_win": raw.get("home_win")
-                        or raw.get("home")
-                        or raw.get("mandante"),
-            "draw": raw.get("draw")
-                    or raw.get("empate"),
-            "away_win": raw.get("away_win")
-                        or raw.get("away")
-                        or raw.get("visitante"),
-        }
+    # 4) Mapeia vários nomes possíveis -> home_win, draw, away_win
+    home_win = _pick_first(
+        probs_raw,
+        "home_win", "home", "mandante",
+        "prob_home", "prob_mandante",
+        "p_home", "p_mandante",
+    )
+    draw = _pick_first(
+        probs_raw,
+        "draw", "empate",
+        "prob_draw", "prob_empate",
+        "p_draw",
+    )
+    away_win = _pick_first(
+        probs_raw,
+        "away_win", "away", "visitante",
+        "prob_away", "prob_visitante",
+        "p_away", "p_visitante",
+    )
 
+    probabilities = {
+        "home_win": home_win,
+        "draw": draw,
+        "away_win": away_win,
+    }
+
+    # 5) Média de gols com nomes alternativos
     goals_avg = (
         raw.get("goals_avg")
         or raw.get("avg_goals")
         or raw.get("media_gols")
+        or raw.get("gols_medios")
     )
 
-    response = {
-        "home_team": req.home_team,
-        "away_team": req.away_team,
+    response: Dict[str, Any] = {
+        "home_team": normalized_home,
+        "away_team": normalized_away,
         "probabilities": probabilities,
         "goals_avg": goals_avg,
     }
 
-    # se tiver mais estatísticas, mantemos num campo extra
+    # Mantém stats se existir
     if "stats" in raw:
         response["stats"] = raw["stats"]
 
@@ -335,7 +422,7 @@ def admin_ingest_bra(db: Session = Depends(get_db)):
 
 
 # -----------------------------------------------------------------------------
-# 1) LISTA DE JOGOS AO VIVO – BRASILEIRÃO SÉRIE A
+# JOGOS AO VIVO – BRASILEIRÃO SÉRIE A
 # -----------------------------------------------------------------------------
 
 @app.get("/live/bra")
@@ -351,9 +438,8 @@ async def live_bra():
         )
 
     url = f"{FOOTBALL_API_BASE.rstrip('/')}/fixtures"
-    # pede TODOS os jogos ao vivo do mundo
     params = {
-        "live": "all",
+        "live": "all",  # todos os jogos ao vivo do mundo
     }
     headers = {
         "x-apisports-key": FOOTBALL_API_KEY,
@@ -369,7 +455,7 @@ async def live_bra():
         )
 
     data = r.json()
-    all_live = data.get("response", [])
+    all_live = data.get("response", []) or []
 
     jogos_bra_serie_a = []
 
