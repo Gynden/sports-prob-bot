@@ -21,10 +21,10 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="BRA Probabilities API")
 
-# CORS para permitir chamadas do seu front (Render)
+# CORS para o front (pode depois restringir para o domínio do seu site)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # se quiser, depois troca por ["https://bot-sports-analyst2.onrender.com"]
+    allow_origins=["*"],  # ex.: ["https://bot-sports-analyst2.onrender.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -100,8 +100,8 @@ def map_fixture_to_simple(f: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "fixture_id": fixture.get("id"),
         "date": fixture.get("date"),
-        "status": status.get("short"),      # ex: '1H', 'HT', '2H'
-        "minute": status.get("elapsed"),     # minuto de jogo
+        "status": status.get("short"),   # ex: '1H', 'HT', '2H'
+        "minute": status.get("elapsed"), # minuto de jogo
         "league": league.get("name"),
         "round": league.get("round"),
         "country": league.get("country"),
@@ -249,12 +249,62 @@ class BraMatchRequest(BaseModel):
 
 @app.post("/probabilities/bra/match")
 def bra_match_probability(req: BraMatchRequest, db: Session = Depends(get_db)):
+    """
+    Normaliza a resposta do analyze_match para um formato fixo:
+    {
+      "home_team": "...",
+      "away_team": "...",
+      "probabilities": {
+        "home_win": ...,
+        "draw": ...,
+        "away_win": ...
+      },
+      "goals_avg": ...
+    }
+    """
     try:
-        result = analyze_match(db, req.home_team, req.away_team, req.last_matches)
+        raw = analyze_match(db, req.home_team, req.away_team, req.last_matches)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    return result
+    if not isinstance(raw, dict):
+        # Se sua função retornar outra coisa, simplesmente devolvemos assim
+        return raw
+
+    # Tenta pegar já no formato esperado
+    probabilities = raw.get("probabilities") or raw.get("probs") or {}
+
+    # Se ainda estiver vazio, tenta mapear de chaves alternativas
+    if not probabilities:
+        probabilities = {
+            "home_win": raw.get("home_win")
+                        or raw.get("home")
+                        or raw.get("mandante"),
+            "draw": raw.get("draw")
+                    or raw.get("empate"),
+            "away_win": raw.get("away_win")
+                        or raw.get("away")
+                        or raw.get("visitante"),
+        }
+
+    goals_avg = (
+        raw.get("goals_avg")
+        or raw.get("avg_goals")
+        or raw.get("media_gols")
+    )
+
+    response = {
+        "home_team": req.home_team,
+        "away_team": req.away_team,
+        "probabilities": probabilities,
+        "goals_avg": goals_avg,
+    }
+
+    # se tiver mais estatísticas, mantemos num campo extra
+    if "stats" in raw:
+        response["stats"] = raw["stats"]
+
+    return response
 
 
 @app.post("/admin/ingest-bra")
@@ -342,6 +392,7 @@ async def live_bra():
             "fixture_id": fixture.get("id"),
             "date": fixture.get("date"),
             "status": fixture.get("status", {}).get("short"),
+            "minute": fixture.get("status", {}).get("elapsed"),
             "league": league.get("name"),
             "round": league.get("round"),
             "home_team": teams.get("home", {}).get("name"),
